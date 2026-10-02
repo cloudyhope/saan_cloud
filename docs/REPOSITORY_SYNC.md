@@ -8,7 +8,7 @@
 2. تغییرات را در `test` commit کنید و از تمیز بودن `git status --porcelain` مطمئن شوید.
 3. `python scripts/check_public_snapshot.py HEAD` و در صورت امکان اسکنر تخصصی راز را اجرا کنید.
 4. از ریشه مونوریپو `pwsh -File scripts/sync-repositories.ps1 -DryRun` و سپس `pwsh -File scripts/sync-repositories.ps1` را اجرا کنید.
-5. SHA درخت دو شاخه را با `git rev-parse test^{tree}` و `git rev-parse refs/remotes/github/test^{tree}` پس از fetch تطبیق دهید.
+5. SHA درخت دو شاخه را با `git rev-parse 'test^{tree}'` و `git rev-parse 'refs/remotes/github/test^{tree}'` پس از fetch تطبیق دهید.
 
 اسکریپت ابتدا `origin/test` را با commit اصلی جلو می‌برد، سپس همان درخت فایل را به‌عنوان commit جدیدِ فرزند آخرین snapshot روی `github/test` می‌فرستد. انتشار بین دو میزبان اتمیک نیست؛ اگر push دوم شکست بخورد، پس از رفع مشکل همان اسکریپت را دوباره اجرا کنید. GitHub را با `git push github test:test` یا تنظیم چند `pushurl` روی `origin` به‌روزرسانی نکنید؛ آن فرمان تاریخچه خصوصی را عمومی می‌کند.
 
