@@ -14,6 +14,8 @@ backend_verify:
   variables:
     DJANGO_SETTINGS_MODULE: core.local_settings
     Environment: LOCAL
+    STORAGE_BUCKET: saan-local
+    STORAGE_PUBLIC_ADDRESS: http://localhost:18130
     PIP_DISABLE_PIP_VERSION_CHECK: '1'
   before_script:
     - apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev python3-dev && rm -rf /var/lib/apt/lists/*
