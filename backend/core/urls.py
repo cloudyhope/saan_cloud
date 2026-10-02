@@ -30,6 +30,18 @@ from notification.in_app import (
 )
 from core.media_access import local_uploaded_media_read
 from visit.management_api import BuildingManagementTransferAPIView
+from visit.dashboard_api import AdminDashboardView
+from visit.field_ops import (AdminVisitFieldOpsView, ClientVisitChatView, PromoterEarningsView, PromoterVisitChatView,
+                             VisitAssetContextView, VisitAssignmentResponseView)
+from visit.maintenance import MaintenancePlanDetailView, MaintenancePlanListCreateView
+from visit.assignment_api import (AssignmentApplyView, AssignmentExpertView, AssignmentOverviewView,
+                                  AssignmentPlanView, AssignmentRequirementView, AssignmentSettingView,
+                                  AssignmentSkillDetailView, AssignmentSkillListView, AssignmentTimeOffDetailView,
+                                  AssignmentTimeOffView)
+from warehouse.part_requests import (PartRequestDecisionView, PartRequestListView, PromoterPartRequestCancelView,
+                                     PromoterPartRequestView)
+from visit.priority_api import (PriorityEntityView, PriorityFactorDetailView, PriorityFactorListCreateView,
+                                PriorityRankingView)
 from visit.service_case_api import (
     WarrantyContractListCreateView, WarrantyEligibleProductsView, WarrantyClaimListCreateView,
     WarrantyClaimDecisionView, RepairCaseListCreateView, RepairCaseDetailView,
@@ -69,6 +81,33 @@ schema_view = get_schema_view(
 )
 
 urlpatterns = [
+    path('core/api/admin/dashboard/', AdminDashboardView.as_view(), name='AdminDashboardView'),
+    path('core/api/promoter/visit/<int:id>/assignment/', VisitAssignmentResponseView.as_view(), name='VisitAssignmentResponseView'),
+    path('core/api/promoter/visit/<int:id>/assets/', VisitAssetContextView.as_view(), name='VisitAssetContextView'),
+    path('core/api/promoter/visit/<int:id>/chat/', PromoterVisitChatView.as_view(), name='PromoterVisitChatView'),
+    path('core/api/promoter/visit/<int:id>/parts/', PromoterPartRequestView.as_view(), name='PromoterPartRequestView'),
+    path('core/api/promoter/part_request/<int:id>/cancel/', PromoterPartRequestCancelView.as_view(), name='PromoterPartRequestCancelView'),
+    path('core/api/promoter/visit/earnings/', PromoterEarningsView.as_view(), name='PromoterEarningsView'),
+    path('core/api/client/visits/<int:id>/chat/', ClientVisitChatView.as_view(), name='ClientVisitChatView'),
+    path('core/api/admin/visit/<int:id>/field_ops/', AdminVisitFieldOpsView.as_view(), name='AdminVisitFieldOpsView'),
+    path('core/api/admin/assignment/overview/', AssignmentOverviewView.as_view(), name='AssignmentOverviewView'),
+    path('core/api/admin/assignment/plan/', AssignmentPlanView.as_view(), name='AssignmentPlanView'),
+    path('core/api/admin/assignment/apply/', AssignmentApplyView.as_view(), name='AssignmentApplyView'),
+    path('core/api/admin/assignment/experts/<int:user_id>/', AssignmentExpertView.as_view(), name='AssignmentExpertView'),
+    path('core/api/admin/assignment/experts/<int:user_id>/time_off/', AssignmentTimeOffView.as_view(), name='AssignmentTimeOffView'),
+    path('core/api/admin/assignment/time_off/<int:id>/', AssignmentTimeOffDetailView.as_view(), name='AssignmentTimeOffDetailView'),
+    path('core/api/admin/assignment/skills/', AssignmentSkillListView.as_view(), name='AssignmentSkillListView'),
+    path('core/api/admin/assignment/skills/<int:id>/', AssignmentSkillDetailView.as_view(), name='AssignmentSkillDetailView'),
+    path('core/api/admin/assignment/requirements/<int:visit_type_id>/', AssignmentRequirementView.as_view(), name='AssignmentRequirementView'),
+    path('core/api/admin/assignment/settings/', AssignmentSettingView.as_view(), name='AssignmentSettingView'),
+    path('core/api/admin/maintenance_plans/', MaintenancePlanListCreateView.as_view(), name='MaintenancePlanListCreateView'),
+    path('core/api/admin/maintenance_plans/<int:id>/', MaintenancePlanDetailView.as_view(), name='MaintenancePlanDetailView'),
+    path('api/warehouse/v1/part_requests/', PartRequestListView.as_view(), name='PartRequestListView'),
+    path('api/warehouse/v1/part_requests/<int:id>/decision/', PartRequestDecisionView.as_view(), name='PartRequestDecisionView'),
+    path('core/api/admin/priority/factors/', PriorityFactorListCreateView.as_view(), name='PriorityFactorListCreateView'),
+    path('core/api/admin/priority/factors/<int:id>/', PriorityFactorDetailView.as_view(), name='PriorityFactorDetailView'),
+    path('core/api/admin/priority/entity/<str:target>/<int:id>/', PriorityEntityView.as_view(), name='PriorityEntityView'),
+    path('core/api/admin/priority/ranking/', PriorityRankingView.as_view(), name='PriorityRankingView'),
     path('core/api/notifications/', InAppNotificationListView.as_view(), name='InAppNotificationListView'),
     path('core/api/notifications/read-all/', InAppNotificationReadAllView.as_view(), name='InAppNotificationReadAllView'),
     path('core/api/notifications/<int:id>/read/', InAppNotificationReadView.as_view(), name='InAppNotificationReadView'),

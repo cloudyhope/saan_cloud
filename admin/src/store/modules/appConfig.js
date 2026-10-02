@@ -4,10 +4,15 @@ export const appConfig = {
 		closeMenu: false,
 		error: '',
 		mobileMobile: false,
+		// Sidebar menu of the selected project (not persisted); headers reuse its icons.
+		menu: [],
 	},
 	mutations: {
 		changeMenuStatus(state, payload) {
 			state.closeMenu = payload;
+		},
+		setMenu(state, payload) {
+			state.menu = payload;
 		},
 		openMenuMobile(state, payload) {
 			state.mobileMobile = payload;

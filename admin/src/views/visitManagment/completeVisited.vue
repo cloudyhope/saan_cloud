@@ -140,15 +140,7 @@
                 <span v-else>-</span>
               </td>
               <td>
-                <button
-                  type="button"
-                  class="icon-action"
-                  @click="visitDetail(item.id)"
-                  aria-label="مشاهده جزئیات"
-                  title="مشاهده جزئیات"
-                >
-                  <ActionIcon name="view" />
-                </button>
+                <RowActions :items="[{ label: 'مشاهده جزئیات', icon: 'view', action: () => visitDetail(item.id) }]" />
               </td>
             </tr>
           </template>
@@ -163,8 +155,9 @@ import FilterPanel from '@/components/FilterPanel/index.vue';
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     DisplayDate,
     FilterPanel,
     Tableview,

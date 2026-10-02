@@ -34,6 +34,23 @@ docker compose -f docker-compose.local.yml exec -T api python manage.py seed_cli
 
 The command adds synthetic buildings, elevators and boards and narrow Client grants. Sign in to the field app; the backend menu selects the Client or Expert landing page. Both roles share this origin's persisted login; after switching account, reload other tabs to synchronize their session.
 
+For a full manual test matrix, run the QA seed once the stack is up:
+
+```powershell
+docker compose -f docker-compose.local.yml exec -T api python manage.py seed_qa_matrix
+python backend/data/qa_probe.py
+```
+
+`seed_qa_matrix` requires DEBUG and SQLite, backs up the database, and is idempotent. It creates one account per role (admin, planner, support, warehouse, supervisor, two experts, three clients, a dual-role account, a multi-project account) plus negative cases (no role, inactive, deleted role), grants that mirror each role's screens, and labelled synthetic buildings, visits in every status, tickets, warranty/repair cases, stock, invoices and notifications. Generated passwords go to the ignored `backend/data/qa-accounts.json`, and the usernames, per-scenario expectations and deep links go to the ignored `backend/data/QA_TEST_ACCOUNTS.md`; neither is printed or committed. `qa_probe.py` logs in as every persona and asserts the role boundaries through the API. SMS-based flows (OTP login, survey phone check, invoice payment code) cannot run locally.
+
+Daily field scheduling (periodic maintenance visits and due-date reminders) is a management command; on a server run it once a day from cron or a systemd timer. Locally, run it by hand; `--date YYYY-MM-DD` simulates another day and `--dry-run` only reports:
+
+```bash
+docker compose -f docker-compose.local.yml exec -T api python manage.py run_field_schedules --project 1
+```
+
+Re-running `seed_qa_matrix` removes the visits it opened from QA plans.
+
 Asset roles have `asset_scope`: none, client, assigned, supervised or project. A method grant is also required. New roles default to none. Unassigned legacy assets remain hidden; review multi-project legacy data before rollout.
 
 Focused checks:

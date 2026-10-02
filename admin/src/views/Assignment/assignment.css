@@ -1,0 +1,50 @@
+/* Shared look of the smart-assignment screens; every selector is scoped under .assign-page. */
+.assign-page { display: grid; gap: 16px; color: #25324b; }
+.assign-page .assign-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-radius: 16px;
+  background: linear-gradient(140deg, #16264a, #2a4f9a); color: #fff; box-shadow: 0 8px 20px #16264a22; }
+.assign-page .assign-head h1 { color: #fff; font-size: 17px; margin: 0 0 3px; font-weight: 800; }
+.assign-page .assign-head p { color: #dde6ff; font-size: 12px; line-height: 1.9; margin: 0; max-width: 700px; }
+.assign-page .tabs { display: inline-flex; gap: 3px; padding: 3px; border-radius: 11px; background: #ffffff1f; flex: none; }
+.assign-page .tabs button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 5px 14px; border: 0; border-radius: 9px; background: transparent;
+  color: #e6edff; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.assign-page .tabs button.active { background: #fff; color: #17233b; }
+.assign-page .tabs b { min-width: 20px; padding: 0 6px; border-radius: 10px; background: #d03b3b; color: #fff; font-size: 11px; line-height: 20px; }
+.assign-page .panel { padding: 18px; border-radius: 16px; background: #fff; border: 1px solid #e3e9f2; box-shadow: 0 4px 14px #1b2a4a08; }
+.assign-page .panel + .panel { margin-top: 0; }
+.assign-page .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.assign-page .panel-head h2 { font-size: 15px; font-weight: 800; color: #17233b; margin: 0 0 3px; }
+.assign-page .panel-head p, .assign-page .muted { font-size: 12px; color: #6b778d; margin: 0; line-height: 1.8; }
+.assign-page .notice { padding: 12px 16px; border-radius: 12px; background: #fff; border: 1px solid #e3e9f2; font-size: 13px; }
+.assign-page .notice.error, .assign-page .error { color: #a12b2b; background: #fdeceb; border-color: #f0c9c4; padding: 9px 12px; border-radius: 10px; font-size: 12.5px; }
+.assign-page table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.assign-page th { text-align: right; color: #6b778d; font-weight: 700; padding: 9px 8px; border-bottom: 1px solid #e3e9f2; white-space: nowrap; }
+.assign-page td { padding: 10px 8px; border-bottom: 1px solid #f0f2f6; vertical-align: top; }
+.assign-page td small { display: block; color: #7a8496; font-size: 11px; margin-top: 2px; line-height: 1.7; }
+.assign-page .table-wrap { overflow-x: auto; }
+.assign-page button.primary, .assign-page button.ghost, .assign-page button.link { min-height: 36px; padding: 6px 14px; border-radius: 10px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.assign-page button.primary { border: 0; background: #345de0; color: #fff; }
+.assign-page button.primary:disabled { background: #b8c6ee; cursor: default; }
+.assign-page button.ghost { border: 1px solid #d4dceb; background: #fff; color: #345de0; }
+.assign-page button.link { border: 0; background: transparent; color: #345de0; padding: 2px 4px; min-height: 0; }
+.assign-page button.link.danger { color: #b42d2d; }
+.assign-page button:focus-visible, .assign-page select:focus-visible, .assign-page input:focus-visible { outline: 3px solid #3a94b4; outline-offset: 2px; }
+.assign-page .score { display: inline-flex; align-items: center; gap: 6px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.assign-page .score i { width: 9px; height: 9px; border-radius: 50%; }
+.assign-page .bars { display: grid; gap: 3px; margin-top: 6px; min-width: 150px; }
+.assign-page .bar-row { display: grid; grid-template-columns: 52px 1fr 26px; align-items: center; gap: 6px; font-size: 10.5px; color: #6b778d; }
+.assign-page .bar-track { height: 6px; border-radius: 3px; background: #eef1f6; overflow: hidden; }
+.assign-page .bar-track span { display: block; height: 100%; border-radius: 3px; background: #2a78d6; }
+.assign-page .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; margin: 0 0 4px 4px; border-radius: 8px; background: #eef2f8; color: #3b4963; font-size: 11.5px; font-weight: 700; }
+.assign-page .chip em { font-style: normal; color: #345de0; }
+.assign-page .chip.off { background: #fff4dc; color: #8a5a00; }
+.assign-page .flag { display: block; font-size: 11.5px; line-height: 1.8; }
+.assign-page .flag.block { color: #a12b2b; }
+.assign-page .flag.warn { color: #8a5a00; }
+#app .layout-container .assign-page .field { display: grid; gap: 4px; margin: 0; font-size: 11.5px; font-weight: 700; color: #6b778d; }
+#app .layout-container .assign-page .check { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; font-weight: 600; color: #3b4963; }
+.assign-page .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.assign-page .wide { grid-column: 1 / -1; }
+.assign-page .days { display: flex; flex-wrap: wrap; gap: 6px; }
+.assign-page .day { min-height: 34px; padding: 4px 12px; border: 1px solid #d4dceb; border-radius: 9px; background: #fff; color: #4a566c; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.assign-page .day.on { background: #345de0; border-color: #345de0; color: #fff; }
+@media (max-width: 860px) { .assign-page .assign-head { flex-direction: column; align-items: stretch; } .assign-page .tabs { overflow-x: auto; } }

@@ -1,8 +1,6 @@
 <template>
 	<div>
-		<div class="empty-container" v-if="uploadedFileLists.length === 0">
-			<h4>هیچ فایلی وجود ندارد!</h4>
-		</div>
+		<EmptyState v-if="uploadedFileLists.length === 0" kind="documents" title="هیچ فایلی وجود ندارد" />
 		<div v-else class="action-list">
 			<div class="box">
 				<Tableview
@@ -35,33 +33,14 @@
 								{{ item.name }}
 							</td>
 							<td>
-								<img
-									@click="watchItems(item.icon)"
-									class="watch-items"
-									src="../../assets/images/iconPack/eye.svg"
-								/>
-							</td>
+                <RowActions :items="[{ label: 'مشاهده آیکون', icon: 'image', action: () => watchItems(item.icon) }]" />
+              </td>
 							<td>
-								<img
-									@click="watchItems(item.file)"
-									class="watch-items"
-									src="../../assets/images/iconPack/eye.svg"
-								/>
-							</td>
+                <RowActions :items="[{ label: 'مشاهده فایل', icon: 'file', action: () => watchItems(item.file) }]" />
+              </td>
 							<td>
-								<img
-									v-b-tooltip.hover
-									title="ویرایش"
-									@click="editData(item)"
-									class="eye-icon ml-2"
-									src="../../assets/images/iconPack/basil_edit-outline.svg"
-								/>
-								<img
-									@click="deleteItemFunc(item.id)"
-									class="delete-icon"
-									src="@/assets/images/iconPack/red-trash.svg"
-								/>
-							</td>
+                <RowActions :items="[{ label: 'ویرایش', icon: 'edit', action: () => editData(item) }, { label: 'حذف', icon: 'delete', action: () => deleteItemFunc(item.id), danger: true }]" />
+              </td>
 						</tr>
 					</template>
 				</Tableview>
@@ -105,8 +84,10 @@
 <script>
 import Tableview from '../../components/Tableview/index.vue';
 
+import EmptyState from '@/components/EmptyState/index.vue';
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-	components: {
+	components: { RowActions, EmptyState,
 		Tableview,
 	},
 	data() {

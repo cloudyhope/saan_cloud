@@ -497,6 +497,18 @@ textarea:focus-visible {
 #app .layout-container .visit-status-select {
   width: 126px;
 }
+#app .layout-container .visit-status-badge {
+  background-image: none;
+  padding: 6px 10px;
+  text-align: center;
+  font-weight: 700;
+  cursor: pointer;
+}
+#app .layout-container .visit-status-5 {
+  background-color: #fff6e4;
+  border-color: #efd5a6;
+  color: #8a5814;
+}
 #app .layout-container .visit-status-2 {
   background-color: #edf3ff;
   border-color: #c6d6f3;

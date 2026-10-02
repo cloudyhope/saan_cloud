@@ -38,6 +38,16 @@
           "
         />
       </section>
+      <PriorityPanel
+        v-if="priorityTarget"
+        :target="priorityTarget"
+        :id="record.id"
+      />
+      <MaintenancePanel
+        v-if="maintenanceElevators"
+        :elevators="maintenanceElevators"
+        :building="kind === 'building' ? record.id : null"
+      />
       <section v-if="kind === 'building'" class="detail-section">
         <div class="detail-section-heading">
           <div>
@@ -50,9 +60,7 @@
             >افزودن آسانسور</router-link
           >
         </div>
-        <div v-if="!elevators.length" class="detail-empty">
-          برای این ساختمان آسانسوری ثبت نشده است.
-        </div>
+        <EmptyState v-if="!elevators.length" kind="building" size="sm" inline title="آسانسوری ثبت نشده" description="با «افزودن آسانسور» اولین آسانسور این ساختمان را تعریف کنید." />
         <div class="related-record-grid">
           <router-link
             v-for="item in elevators"
@@ -72,7 +80,7 @@
       </section>
       <section v-if="kind === 'customer'" class="detail-section">
         <div class="detail-section-heading"><h2>افراد مرتبط با مشتری</h2></div>
-        <div v-if="!contacts.length" class="detail-empty">فردی برای این مشتری ثبت نشده است.</div>
+        <EmptyState v-if="!contacts.length" kind="generic" size="sm" inline title="فردی ثبت نشده" description="" />
         <div v-for="item in contacts" :key="item.id" class="related-record">
           <InfoGrid
             :fields="[
@@ -169,10 +177,13 @@
 </template>
 <script>
 import InfoGrid from '@/components/RecordDetails/InfoGrid.vue';
+import PriorityPanel from '@/components/RecordDetails/PriorityPanel.vue';
+import MaintenancePanel from '@/components/RecordDetails/MaintenancePanel.vue';
 import { elevatorSections, entityLabels } from '@/utils/entityDetails';
+import EmptyState from '@/components/EmptyState/index.vue';
 const rows = (data) => (Array.isArray(data) ? data : data.results || []);
 export default {
-  components: { InfoGrid },
+  components: { EmptyState, InfoGrid, PriorityPanel, MaintenancePanel },
   data: () => ({
     loading: true,
     error: '',
@@ -192,6 +203,15 @@ export default {
     managementError: false,
   }),
   computed: {
+    maintenanceElevators() {
+      if (!this.record.id) return null;
+      if (this.kind === 'elevator') return [{ id: this.record.id, title: this.record.title }];
+      if (this.kind === 'building') return this.elevators.map((item) => item.elevator).filter(Boolean);
+      return null;
+    },
+    priorityTarget() {
+      return { building: 'building', elevator: 'elevator', customer: 'client' }[this.kind] || '';
+    },
     kind() {
       return this.$route.meta.recordKind;
     },

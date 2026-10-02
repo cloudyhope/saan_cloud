@@ -12,7 +12,7 @@ const vuexLocal = new VuexPersistence({
 	storage: window.localStorage,
 	reducer: (state) => ({
 		userConfig: state.userConfig,
-		appConfig: state.appConfig,
+		appConfig: { closeMenu: state.appConfig.closeMenu, mobileMobile: state.appConfig.mobileMobile },
 		order: state.order,
 	}),
 });

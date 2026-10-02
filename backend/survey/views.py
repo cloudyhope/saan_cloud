@@ -1031,7 +1031,7 @@ class FrontSurveyPageSettingsView(BaseLimiter, generics.GenericAPIView):
 class FieldSurveyAnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = SurveyAnswer
-        fields = ('survey_fill_out', 'survey_question', 'bool', 'number', 'text',
+        fields = ('survey_fill_out', 'survey_question', 'bool', 'score', 'number', 'text',
                   'description', 'price', 'multichoice', 'dropdown', 'radio',
                   'longitude', 'latitude')
 

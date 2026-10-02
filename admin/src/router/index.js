@@ -91,6 +91,12 @@ const routes = [
         component: () => import('@/views/ServiceCases/index.vue'),
       },
       {
+        path: '/priority',
+        name: 'priority',
+        meta: { title: 'اولویت‌بندی خدمات' },
+        component: () => import('@/views/Priority/index.vue'),
+      },
+      {
         path: '/test-dashboard',
         name: 'test-dashboard',
         meta: {
@@ -529,6 +535,24 @@ const routes = [
           title: 'مدیریت انبار',
         },
         component: () => import('@/views/Warehouse/create.vue'),
+      },
+      {
+        path: '/warehouse/part-requests',
+        name: 'partRequests',
+        meta: { title: 'درخواست‌های قطعه' },
+        component: () => import('@/views/Warehouse/partRequests.vue'),
+      },
+      {
+        path: '/assignment',
+        name: 'assignment',
+        meta: { title: 'تخصیص هوشمند' },
+        component: () => import('@/views/Assignment/index.vue'),
+      },
+      {
+        path: '/visitmanagment/visit-types',
+        name: 'visitTypes',
+        meta: { title: 'انواع خدمت' },
+        component: () => import('@/views/visitManagment/visitTypes.vue'),
       },
       {
         path: '/warehouse/warelist',

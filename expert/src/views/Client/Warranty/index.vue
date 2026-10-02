@@ -16,7 +16,7 @@
     <template v-if="loaded">
       <section v-if="tab === 'coverage'" aria-labelledby="coverage-title">
         <div class="warranty-section-title"><div><span>پوشش شما</span><h2 id="coverage-title">قراردادهای گارانتی</h2></div><span class="warranty-count">{{ number(contracts.length) }}</span></div>
-        <div v-if="!contracts.length" class="warranty-empty"><v-icon size="32">mdi-shield-off-outline</v-icon><strong>قرارداد گارانتی ثبت نشده است</strong><p>در صورت ثبت قرارداد توسط شرکت، جزئیات پوشش اینجا دیده می‌شود.</p></div>
+        <EmptyState v-if="!contracts.length" kind="warranty" size="sm" title="قرارداد گارانتی ثبت نشده است" description="در صورت ثبت قرارداد توسط شرکت، جزئیات پوشش اینجا دیده می‌شود." />
         <article v-for="contract in contracts" :key="contract.id" class="warranty-card">
           <div class="warranty-card-head"><span class="warranty-symbol"><v-icon color="#21658b">mdi-shield-check-outline</v-icon></span><div><small>شماره قرارداد</small><h3>{{ contract.reference }}</h3></div><span class="warranty-state" :class="coverageActive(contract) ? 'covered' : 'expired'">{{ coverageActive(contract) ? 'فعال' : 'پایان‌یافته' }}</span></div>
           <div class="warranty-card-meta"><span>از {{ date(contract.coverage_start) }}</span><span>تا {{ date(contract.coverage_end) }}</span></div>
@@ -37,7 +37,7 @@
           <v-btn block large color="primary" type="submit" :loading="sending" :disabled="!form.client || !form.product || !form.issue || (matchingContracts.length > 1 && !form.contract) || sending">ثبت برای بررسی</v-btn>
         </form>
         <v-alert v-if="success" type="success" outlined role="status">درخواست بررسی گارانتی ثبت شد.</v-alert>
-        <div v-if="!claims.length" class="warranty-empty"><v-icon size="32">mdi-clipboard-text-outline</v-icon><strong>درخواستی ثبت نشده است</strong><p>اگر قطعه‌ای مشکل دارد، از «ثبت مورد» آن را برای بررسی بفرستید.</p></div>
+        <EmptyState v-if="!claims.length" kind="documents" size="sm" title="درخواستی ثبت نشده است" description="اگر قطعه‌ای مشکل دارد، از «ثبت مورد» آن را برای بررسی بفرستید." />
         <article v-for="claim in claims" :key="claim.id" class="warranty-card">
           <div class="warranty-card-head"><span class="warranty-symbol"><v-icon color="#21658b">mdi-clipboard-text-outline</v-icon></span><div><small>درخواست #{{ number(claim.id) }}</small><h3>{{ productName(claim.product) }}</h3></div><span class="warranty-state" :class="String(claim.status || '').toLowerCase()">{{ claimStatus(claim.status) }}</span></div>
           <p class="warranty-card-text">{{ claim.issue }}</p><div class="warranty-card-meta"><span>ثبت: {{ date(claim.opened_at) }}</span><span v-if="claim.decided_at">بررسی: {{ date(claim.decided_at) }}</span></div>
@@ -47,7 +47,7 @@
 
       <section v-else aria-labelledby="repairs-title">
         <div class="warranty-section-title"><div><span>از دریافت تا تحویل</span><h2 id="repairs-title">پرونده‌های تعمیر</h2></div><span class="warranty-count">{{ number(repairs.length) }}</span></div>
-        <div v-if="!repairs.length" class="warranty-empty"><v-icon size="32">mdi-tools</v-icon><strong>تعمیر فعالی ندارید</strong><p>پرونده‌های تعمیر قطعات شما پس از دریافت توسط شرکت اینجا نمایش داده می‌شوند.</p></div>
+        <EmptyState v-if="!repairs.length" kind="parts" size="sm" title="تعمیر فعالی ندارید" description="پرونده‌های تعمیر قطعات شما پس از دریافت توسط شرکت اینجا نمایش داده می‌شوند." />
         <article v-for="repair in repairs" :key="repair.id" class="warranty-card">
           <div class="warranty-card-head"><span class="warranty-symbol"><v-icon color="#21658b">mdi-wrench-outline</v-icon></span><div><small>کد تعمیر {{ String(repair.rma_key || '').slice(0, 8) }}</small><h3>{{ productName(repair.product) }}</h3></div><span class="warranty-state" :class="repair.status === 'DELIVERED' ? 'covered' : 'pending'">{{ repairStatus(repair.status) }}</span></div>
           <div class="warranty-card-meta"><span>شماره سریال: {{ repair.serial_snapshot || 'ثبت نشده' }}</span><span>دریافت: {{ date(repair.received_at) }}</span></div>
@@ -64,7 +64,9 @@
 <script>
 import { pageRows, errorMessage } from '@/utils/clientRequests';
 
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
+  components: { EmptyState },
   name: 'ClientWarranty',
   data: () => ({ tab: 'coverage', tabs: [
     { key: 'coverage', label: 'پوشش' }, { key: 'claims', label: 'درخواست‌ها' }, { key: 'repairs', label: 'تعمیرات' },

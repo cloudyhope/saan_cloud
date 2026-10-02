@@ -10,7 +10,7 @@ from pypdf import PdfReader
 from rest_framework.test import APIClient
 
 from auth_app.models import Project, Role, RoleAssignment, RoleView, ViewMethod
-from visit.models import Answer, Building, BuildingClient, Client, ClientVisitFeedback, Question, QuestionType, UserClient, Visit, VisitType
+from visit.models import Answer, Building, BuildingClient, Client, ClientVisitFeedback, Photo, PhotoType, Question, QuestionType, UserClient, Visit, VisitType
 from visit.report_snapshot import capture_report_snapshot
 from visit.report_pdf import render_report_pdf
 
@@ -142,3 +142,56 @@ class ClientVisitDetailTests(TestCase):
                                version=1, created_at=snapshot.created_at)
         content = render_report_pdf(fake).getvalue()
         self.assertGreater(len(PdfReader(BytesIO(content)).pages), 1)
+
+    def test_report_snapshot_captures_photos_and_client_detail_signs_urls(self):
+        photo_type = PhotoType.objects.create(project=self.project, visit_type=self.visit.type,
+                                              name='panel_photo', verbose_name='تصویر تابلو فرمان')
+        photo = Photo.objects.create(
+            visit=self.visit, type=photo_type, creator=self.worker,
+            link='http://localhost:18110/media/uploads/panel.jpg',
+            datetime_created=self.visit.datetime_created,
+        )
+        self.visit.status = Visit.COMPLETED
+        self.visit.save()
+        snapshot = capture_report_snapshot(self.visit, self.worker)
+        self.assertEqual(snapshot.payload['format'], 2)
+        self.assertEqual(len(snapshot.payload['photos']), 1)
+        self.assertEqual(snapshot.payload['photos'][0]['type_name'], 'تصویر تابلو فرمان')
+        self.assertEqual(snapshot.payload['photos'][0]['link'], 'http://localhost:18110/media/uploads/panel.jpg')
+
+        response = self.api.get(self.url(self.visit))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data['photos']), 1)
+        photo_data = response.data['photos'][0]
+        self.assertEqual(photo_data['id'], photo.pk)
+        self.assertEqual(photo_data['type_name'], 'تصویر تابلو فرمان')
+        self.assertIn('/core/api/media/', photo_data['url'])
+
+        pdf_response = self.api.get(self.pdf_url(self.visit))
+        self.assertEqual(pdf_response.status_code, 200)
+        pdf_content = b''.join(pdf_response.streaming_content)
+        self.assertTrue(pdf_content.startswith(b'%PDF-'))
+        self.assertEqual(len(PdfReader(BytesIO(pdf_content)).pages), 1)
+
+    def test_legacy_format_1_snapshot_backward_compatible(self):
+        self.visit.status = Visit.COMPLETED
+        self.visit.save()
+        payload = {
+            'format': 1,
+            'visit_id': self.visit.pk,
+            'project_id': self.project.pk,
+            'captured_at': self.visit.datetime_created.isoformat(),
+            'answers': [{'question': 'Legacy Q', 'text': 'Legacy A'}],
+        }
+        digest = hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode('utf-8')).hexdigest()
+        from visit.models import VisitReportSnapshot
+        VisitReportSnapshot.objects.create(
+            visit=self.visit, version=1, payload=payload, checksum=digest, source='legacy', created_by=self.worker
+        )
+        response = self.api.get(self.url(self.visit))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['photos'], [])
+        self.assertEqual(response.data['report'][0]['text'], 'Legacy A')
+
+        pdf_response = self.api.get(self.pdf_url(self.visit))
+        self.assertEqual(pdf_response.status_code, 200)

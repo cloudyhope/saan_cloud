@@ -57,20 +57,14 @@
           </tr>
           <tr v-else-if="errorMessage">
             <td :colspan="columnCount" class="table-state">
-              <p role="alert">{{ errorMessage }}</p>
-              <button class="btn btn-outline-primary" type="button" @click="$emit('retry')">
-                تلاش مجدد
-              </button>
+              <EmptyState kind="error" size="sm" inline :description="errorMessage" role="alert">
+                <button class="btn btn-outline-primary" type="button" @click="$emit('retry')">تلاش مجدد</button>
+              </EmptyState>
             </td>
           </tr>
           <tr v-else-if="showNoData">
             <td :colspan="columnCount" class="table-state">
-              <span class="empty-symbol" aria-hidden="true"
-                ><svg viewBox="0 0 24 24">
-                  <path d="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14M15 15l6 6M7 10h6" /></svg
-              ></span>
-              <strong>موردی یافت نشد</strong
-              ><small class="empty-description">اطلاعاتی برای نمایش در این فهرست وجود ندارد.</small>
+              <EmptyState kind="search" size="sm" inline title="موردی یافت نشد" description="اطلاعاتی برای نمایش در این فهرست وجود ندارد." />
             </td>
           </tr>
           <slot v-else name="TableBody" />
@@ -99,8 +93,9 @@
 </template>
 <script>
 import NavigationIcon from '../NavigationIcon/index.vue';
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
-  components: { NavigationIcon },
+  components: { EmptyState, NavigationIcon },
   props: {
     dark: Boolean,
     hover: Boolean,

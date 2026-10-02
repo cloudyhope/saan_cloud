@@ -4,14 +4,16 @@
     <div class="inbox-toolbar"><div><h2>تازه‌ترین رویدادها</h2><small>{{ number(total) }} اعلان ثبت‌شده</small></div><div><button type="button" :disabled="busy" @click="load(true)">به‌روزرسانی</button><button v-if="unreadCount && loaded" type="button" :disabled="busy" @click="markAllRead">خواندن همه</button></div></div>
     <div v-if="error" class="inbox-error" role="alert">{{ error }} <button type="button" :disabled="busy" @click="load(true)">تلاش دوباره</button></div>
     <div v-if="loading && !loaded" class="inbox-loading" role="status">در حال دریافت اعلان‌ها…</div>
-    <div v-else-if="loaded && !items.length" class="inbox-empty"><span aria-hidden="true">◌</span><h2>هنوز اعلانی ندارید</h2><p>پیام‌های مربوط به شما پس از ثبت، همین‌جا نمایش داده می‌شوند.</p></div>
-    <div v-else class="inbox-list"><button v-for="item in items" :key="item.id" type="button" class="inbox-item" :class="{ unread: !item.read_at }" :disabled="busy" @click="openItem(item)"><span class="item-icon" aria-hidden="true">{{ item.kind === 'support_incoming' ? '✉' : '◌' }}</span><span class="item-copy"><strong>{{ item.title }}<i v-if="!item.read_at" aria-label="خوانده‌نشده"></i></strong><span>{{ item.body }}</span><small>{{ date(item.created_at) }}</small></span><span class="item-arrow" aria-hidden="true">‹</span></button></div>
+    <EmptyState v-else-if="loaded && !items.length" kind="notifications" title="هنوز اعلانی ندارید" description="پیام‌های مربوط به شما پس از ثبت، همین‌جا نمایش داده می‌شوند." />
+    <div v-else class="inbox-list"><button v-for="item in items" :key="item.id" type="button" class="inbox-item" :class="{ unread: !item.read_at }" :disabled="busy" @click="openItem(item)"><span class="item-icon" aria-hidden="true">{{ ({ support_incoming: '✉', visit_review: '✓', visit_declined: '↩', visit_overdue: '!', part_request: '▣' })[item.kind] || '◌' }}</span><span class="item-copy"><strong>{{ item.title }}<i v-if="!item.read_at" aria-label="خوانده‌نشده"></i></strong><span>{{ item.body }}</span><small>{{ date(item.created_at) }}</small></span><span class="item-arrow" aria-hidden="true">‹</span></button></div>
     <button v-if="loaded && nextOffset !== null" type="button" class="inbox-more" :disabled="busy" @click="load(false)">نمایش اعلان‌های بیشتر</button>
   </main>
 </template>
 
 <script>
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
+  components: { EmptyState },
   name: 'AdminNotifications',
   data() { return { items: [], total: 0, unreadCount: 0, nextOffset: null,
     loading: false, loaded: false, saving: false, error: '', sequence: 0 }; },
@@ -67,7 +69,13 @@ export default {
       } catch (_) { if (sequence === this.sequence && project === this.project) this.error = 'ثبت وضعیت اعلان ممکن نشد.'; }
       finally { if (sequence === this.sequence && project === this.project) this.saving = false; }
       if (sequence === this.sequence && project === this.project && item.kind === 'support_incoming' && item.object_id) {
-        this.$router.push({ name: 'ticketDetail', params: { id: item.object_id } }).catch(() => {});
+        this.$router.push({ name: 'ticketDetail', params: { id: item.object_id } }, () => {}, () => {});
+      }
+      if (sequence === this.sequence && project === this.project && item.kind === 'part_request') {
+        this.$router.push('/warehouse/part-requests', () => {}, () => {});
+      }
+      if (sequence === this.sequence && project === this.project && ['visit_review', 'visit_declined', 'visit_overdue'].includes(item.kind) && item.object_id) {
+        this.$router.push('/visitmanagment/answerlist/' + item.object_id, () => {}, () => {});
       }
     },
     async markAllRead() {

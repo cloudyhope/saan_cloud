@@ -76,31 +76,8 @@
               </select>
             </td>
             <td>
-              <button
-                type="button"
-                class="icon-action"
-                @click="transAction(item.id)"
-                aria-label="تاریخچه انتقال"
-              >
-                <img
-                  alt=""
-                  title="تاریخچه انتقال"
-                  class="eye-icon"
-                  src="../../assets/images/iconPack/transaction.svg"
-                />
-              </button>
-              <button
-                type="button"
-                class="icon-action"
-                @click="action(item.id)"
-                aria-label="جزيیات"
-              >
-                <ActionIcon name="view" />
-              </button>
-              <button type="button" class="icon-action" @click="editData(item)" aria-label="ویرایش">
-                <ActionIcon name="edit" />
-              </button>
-            </td>
+                <RowActions :items="[{ label: 'جزئیات', icon: 'view', action: () => action(item.id) }, { label: 'ویرایش', icon: 'edit', action: () => editData(item) }, { label: 'تاریخچه انتقال', icon: 'history', action: () => transAction(item.id) }]" />
+              </td>
           </tr>
         </template>
       </Tableview>
@@ -132,8 +109,9 @@ import FilterPanel from '@/components/FilterPanel/index.vue';
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     FilterPanel,
     Tableview,
     Pagination,

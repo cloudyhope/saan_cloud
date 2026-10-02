@@ -11,7 +11,9 @@
       <v-text-field v-model="search" label="جست‌وجوی نام یا نشانی ساختمان" prepend-inner-icon="mdi-magnify" outlined dense clearable hide-details class="visits-search" />
       <v-alert v-if="error" type="error" outlined role="alert" class="visits-error">{{ error }} <v-btn text color="error" @click="load(true)">تلاش دوباره</v-btn></v-alert>
       <v-skeleton-loader v-if="loading && !loaded" type="article, article" />
-      <section v-else-if="loaded && !visits.length && !error" class="visits-empty"><v-icon color="#2b7189" size="35">{{ activeSearch ? 'mdi-magnify' : 'mdi-clipboard-text-outline' }}</v-icon><h2>{{ activeSearch ? 'نتیجه‌ای پیدا نشد' : 'هنوز درخواستی ثبت نشده است' }}</h2><p>{{ activeSearch ? 'نام یا نشانی دیگری را جست‌وجو کنید.' : 'برای شروع، ساختمان و آسانسور موردنظر را انتخاب کنید.' }}</p><button v-if="activeSearch" type="button" class="visits-clear" @click="search = ''">پاک‌کردن جست‌وجو</button><router-link v-else :to="{ name: 'home' }" class="visits-clear">ساختمان‌های من <v-icon size="17">mdi-arrow-left</v-icon></router-link></section>
+      <EmptyState v-else-if="loaded && !visits.length && !error" :kind="activeSearch ? 'search' : 'visits'"
+                   :title="activeSearch ? 'نتیجه‌ای پیدا نشد' : 'هنوز درخواستی ثبت نشده است'"
+                   :description="activeSearch ? 'نام یا نشانی دیگری را جست‌وجو کنید.' : 'برای شروع، از «ساختمان‌ها» یک ساختمان را باز کنید و درخواست خدمت بدهید.'" />
       <router-link v-for="visit in visits" :key="visit.id" :to="{ name: 'clientVisitDetail', params: { id: visit.id } }" class="visits-card">
         <div class="visits-card-head"><span class="visits-card-icon"><v-icon color="#286c89" size="21">mdi-text-box-check-outline</v-icon></span><div class="visits-card-title"><small>خدمت شماره <bdi>{{ number(visit.id) }}</bdi></small><h3>{{ typeName(visit) }}</h3></div><span class="visits-status" :class="statusClass(visit)">{{ status(visit) }}</span></div>
         <div class="visits-facts"><span><v-icon size="17">mdi-office-building-outline</v-icon>{{ buildingName(visit) }}</span><span><v-icon size="17">mdi-calendar-outline</v-icon>{{ date(visit.datetime_created) }}</span><span v-if="elevatorNames(visit)"><v-icon size="17">mdi-elevator</v-icon>{{ elevatorNames(visit) }}</span></div>
@@ -23,7 +25,9 @@
 </template>
 <script>
 import { pageRows, errorMessage } from '@/utils/clientRequests';
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
+  components: { EmptyState },
   data: () => ({ visits: [], loading: false, loaded: false, error: '', offset: 0, hasMore: false, search: '', activeSearch: '', timer: null, sequence: 0 }),
   computed: { project() { return this.$STORE.state.userConfig.selectedProject; } },
   mounted() { this.load(true); },
@@ -39,7 +43,7 @@ export default {
     buildingName(visit) { return (visit.building && (visit.building.verbose_name || visit.building.name)) || 'ساختمان نامشخص'; },
     elevatorNames(visit) { return (visit.elevator || []).map(item => item.title || 'آسانسور ' + item.id).join('، '); },
     expert(visit) { const user = visit.expert_details || visit.promoter; return user ? [user.first_name, user.last_name].filter(Boolean).join(' ') || 'تعیین شده' : 'تعیین نشده'; },
-    status(visit) { return visit.is_pending_request ? 'در انتظار بررسی' : ({ '0': 'در انتظار مراجعه', '1': 'در حال انجام', '2': 'انجام شده', '3': 'تأیید شده', '4': 'رد شده', '5': 'نیاز به مراجعه مجدد', '6': 'متوقف شده' }[visit.status] || 'در حال پیگیری'); },
+    status(visit) { return visit.is_pending_request ? 'در انتظار بررسی' : ({ '0': 'در انتظار مراجعه', '1': 'در حال انجام', '2': 'انجام شده', '3': 'تأیید شده', '4': 'رد شده', '5': 'در حال اصلاح گزارش', '6': 'متوقف شده' }[visit.status] || 'در حال پیگیری'); },
     statusClass(visit) { return visit.is_pending_request ? 'pending' : ({ '2': 'done', '3': 'done', '4': 'stopped', '6': 'stopped' }[visit.status] || 'active'); },
     async load(reset) {
       if (!this.project || (!reset && this.loading)) return;

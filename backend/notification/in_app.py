@@ -174,3 +174,199 @@ def notify_visit_assignment(visit, source_key):
             title='مأموریت تازه برای شما',
             body=f'مأموریت شماره {visit.pk} برای ساختمان «{building_label}» فعال شد.',
         )
+
+
+def _field_workers(visit):
+    project_id = visit.type.project_id
+    recipients = {visit.expert_id, visit.promoter_id} - {None}
+    return project_id, RoleAssignment.objects.filter(
+        user_id__in=recipients, project_id=project_id, project__is_active=True,
+        user__is_active=True, role__is_active=True, is_deleted=False,
+        role__asset_scope__in=('assigned', 'supervised'),
+    ).values_list('user_id', flat=True).distinct()
+
+
+def _building_label(visit):
+    building = visit.building
+    return str(building.verbose_name or building.name or building.code or 'ساختمان')[:120] if building else 'ساختمان'
+
+
+def notify_visit_completed(visit, version, actor_id=None):
+    """Tell project reviewers that a finished report waits for review, and current managers that it is ready."""
+    from auth_app.models import RoleView
+    from visit.management import current_management_q
+    from visit.models import BuildingClient
+
+    project_id = visit.type.project_id
+    reviewer_roles = RoleView.objects.filter(
+        view_method_name__view_name='AdminUpdateVisitStatusView', view_method_name__method='PUT',
+        can_update=True, role__asset_scope='project', role__is_active=True).values('role_id')
+    reviewers = RoleAssignment.objects.filter(
+        project_id=project_id, project__is_active=True, role_id__in=reviewer_roles,
+        user__is_active=True, is_deleted=False,
+    ).exclude(user_id=actor_id).values_list('user_id', flat=True).distinct()
+    label = _building_label(visit)
+    for recipient_id in reviewers:
+        create_personal_notification(
+            recipient_id=recipient_id, project_id=project_id,
+            source_key=f'visit-completed:{visit.pk}:{version}', kind='visit_review', object_id=visit.pk,
+            title='گزارش اصلاح‌شده برای بررسی' if version > 1 else 'گزارش تازه برای بررسی',
+            body=f'گزارش مأموریت شماره {visit.pk} در «{label}» (نسخه {version}) ثبت شد و منتظر بررسی است.',
+        )
+    clients = BuildingClient.objects.filter(building_id=visit.building_id).filter(
+        current_management_q()).values_list('client_id', flat=True)
+    for client_id in set(clients):
+        for recipient_id in client_recipient_ids(client_id, project_id):
+            create_personal_notification(
+                recipient_id=recipient_id, project_id=project_id,
+                source_key=f'visit-report:{visit.pk}:{version}', kind='visit_report', object_id=visit.pk,
+                title='گزارش اصلاح‌شده خدمت آماده است' if version > 1 else 'گزارش خدمت آماده است',
+                body=(f'نسخه {version} گزارش خدمت «{label}» ثبت شد و جایگزین نسخه قبلی شد.' if version > 1
+                      else f'گزارش خدمت «{label}» ثبت شد و قابل مشاهده است.'),
+            )
+
+
+def notify_visit_reviewed(visit, actor_id=None):
+    """Tell the assigned field workers the review result: approved, rejected or returned."""
+    project_id, workers = _field_workers(visit)
+    label = _building_label(visit)
+    text = {
+        '3': ('visit_reviewed', 'گزارش شما تأیید شد', f'گزارش مأموریت {visit.pk} در «{label}» تأیید شد.'),
+        '4': ('visit_reviewed', 'گزارش شما رد شد', f'گزارش مأموریت {visit.pk} در «{label}» رد شد.'),
+        '5': ('visit_returned', 'مأموریت برای اصلاح برگشت', f'مأموریت {visit.pk} در «{label}» برای اصلاح برگشت داده شد.'),
+    }.get(visit.status)
+    if text is None:
+        return
+    kind, title, body = text
+    stamp = timezone.now().strftime('%Y%m%d%H%M%S%f')
+    for recipient_id in workers:
+        if recipient_id == actor_id:
+            continue
+        create_personal_notification(
+            recipient_id=recipient_id, project_id=project_id,
+            source_key=f'visit-review:{visit.pk}:{visit.status}:{stamp}', kind=kind,
+            object_id=visit.pk, title=title, body=body[:240],
+        )
+
+
+def planner_ids(project_id, exclude=None):
+    """Project-wide members who may edit and assign visits."""
+    from auth_app.models import RoleView
+
+    roles = RoleView.objects.filter(
+        view_method_name__view_name='AdminUpdateVisitView', view_method_name__method__in=('PUT', 'PATCH'),
+        can_update=True, role__asset_scope='project', role__is_active=True).values('role_id')
+    return RoleAssignment.objects.filter(
+        project_id=project_id, project__is_active=True, role_id__in=roles,
+        user__is_active=True, is_deleted=False,
+    ).exclude(user_id=exclude).values_list('user_id', flat=True).distinct()
+
+
+def notify_assignment_declined(visit, actor_id, reason):
+    project_id = visit.type.project_id
+    label = _building_label(visit)
+    stamp = timezone.now().strftime('%Y%m%d%H%M%S%f')
+    for recipient_id in planner_ids(project_id, exclude=actor_id):
+        create_personal_notification(
+            recipient_id=recipient_id, project_id=project_id,
+            source_key=f'visit-declined:{visit.pk}:{stamp}', kind='visit_declined', object_id=visit.pk,
+            title='مأموریت به برنامه‌ریزی برگشت',
+            body=f'کارشناس مأموریت {visit.pk} در «{label}» را بازگرداند: {reason}'[:240],
+        )
+
+
+def notify_maintenance_unassigned(visit):
+    project_id = visit.type.project_id
+    for recipient_id in planner_ids(project_id):
+        create_personal_notification(
+            recipient_id=recipient_id, project_id=project_id,
+            source_key=f'maintenance-unassigned:{visit.pk}', kind='visit_declined', object_id=visit.pk,
+            title='سرویس ادواری منتظر تخصیص است',
+            body=f'مأموریت {visit.pk} برای «{_building_label(visit)}» از برنامه ادواری ساخته شد و کارشناس ندارد.',
+        )
+
+
+def notify_visit_due(visit, today):
+    """Return the number of notifications created; each reminder is sent once per visit and due date."""
+    project_id, workers = _field_workers(visit)
+    label = _building_label(visit)
+    due = visit.due_date
+    created = 0
+
+    def send(recipient_id, key, kind, title, body):
+        nonlocal created
+        before = InAppNotification.objects.filter(recipient_id=recipient_id, source_key=key).exists()
+        create_personal_notification(recipient_id=recipient_id, project_id=project_id, source_key=key,
+                                     kind=kind, object_id=visit.pk, title=title, body=body[:240])
+        created += int(not before and InAppNotification.objects.filter(recipient_id=recipient_id, source_key=key).exists())
+
+    if due >= today:
+        when = 'امروز' if due == today else 'فردا'
+        for recipient_id in workers:
+            send(recipient_id, f'visit-due:{visit.pk}:{due.isoformat()}:{(due - today).days}', 'visit_due',
+                 f'موعد مأموریت {when} است', f'مأموریت {visit.pk} در «{label}» تا {when} باید انجام شود.')
+        return created
+    for recipient_id in workers:
+        send(recipient_id, f'visit-overdue:{visit.pk}:{due.isoformat()}', 'visit_overdue',
+             'مأموریت از موعد گذشته است', f'موعد مأموریت {visit.pk} در «{label}» گذشته است؛ هرچه زودتر انجام شود.')
+    for recipient_id in planner_ids(project_id):
+        send(recipient_id, f'visit-overdue-planner:{visit.pk}:{due.isoformat()}', 'visit_overdue',
+             'دیرکرد در انجام مأموریت', f'مأموریت {visit.pk} در «{label}» از موعد گذشته و هنوز بسته نشده است.')
+    return created
+
+
+def notify_visit_chat(visit, message, side):
+    """Expert messages reach the building's current managers; client messages reach the field workers."""
+    from visit.management import current_management_q
+    from visit.models import BuildingClient
+
+    project_id = visit.type.project_id
+    label = _building_label(visit)
+    if side == 'expert':
+        clients = BuildingClient.objects.filter(building_id=visit.building_id).filter(
+            current_management_q()).values_list('client_id', flat=True)
+        recipients = {user_id for client_id in set(clients) for user_id in client_recipient_ids(client_id, project_id)}
+        title = 'پیام تازه از کارشناس'
+    else:
+        recipients = set(_field_workers(visit)[1])
+        title = 'پیام تازه از مدیر ساختمان'
+    for recipient_id in recipients - {message.user_id}:
+        create_personal_notification(
+            recipient_id=recipient_id, project_id=project_id,
+            source_key=f'visit-chat:{message.pk}', kind='visit_chat', object_id=visit.pk,
+            title=title, body=f'مأموریت {visit.pk} در «{label}»: {message.body}'[:240],
+        )
+
+
+def warehouse_staff_ids(project_id):
+    from auth_app.models import RoleView
+
+    roles = RoleView.objects.filter(
+        view_method_name__view_name='PartRequestDecisionView', view_method_name__method='POST',
+        can_create=True, role__asset_scope='project', role__is_active=True).values('role_id')
+    return RoleAssignment.objects.filter(
+        project_id=project_id, project__is_active=True, role_id__in=roles, user__is_active=True, is_deleted=False,
+    ).values_list('user_id', flat=True).distinct()
+
+
+def notify_part_request(row):
+    name = row.ware.name_fa or row.ware.name_en or 'قطعه'
+    for recipient_id in warehouse_staff_ids(row.project_id):
+        create_personal_notification(
+            recipient_id=recipient_id, project_id=row.project_id,
+            source_key=f'part-request:{row.pk}', kind='part_request', object_id=row.pk,
+            title='درخواست قطعه تازه',
+            body=f'{row.amount} عدد «{name}» برای مأموریت {row.visit_id} درخواست شد.'[:240],
+        )
+
+
+def notify_part_decision(row):
+    name = row.ware.name_fa or row.ware.name_en or 'قطعه'
+    fulfilled = row.status == 'FULFILLED'
+    create_personal_notification(
+        recipient_id=row.requester_id, project_id=row.project_id,
+        source_key=f'part-decision:{row.pk}', kind='part_decision', object_id=row.visit_id,
+        title='قطعه درخواستی تحویل شد' if fulfilled else 'درخواست قطعه رد شد',
+        body=(f'{row.amount} عدد «{name}» به موجودی شما منتقل شد.' if fulfilled
+              else f'درخواست «{name}» رد شد: {row.decision_note}')[:240],
+    )

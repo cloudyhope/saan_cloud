@@ -22,6 +22,14 @@
         </div>
       </section>
 
+      <section v-if="visit.completion_code" class="detail-panel detail-code-panel" aria-labelledby="code-heading">
+        <div class="detail-section-title"><span class="detail-section-icon"><v-icon color="#236180" size="22">mdi-shield-key-outline</v-icon></span><div><small>تأیید پایان کار</small><h2 id="code-heading">کد تأیید شما</h2></div></div>
+        <p class="detail-code-value" dir="ltr" aria-label="کد تأیید">{{ visit.completion_code.split('').join(' ') }}</p>
+        <p class="detail-muted">پس از اطمینان از انجام کار، این کد را به کارشناس بدهید. کارشناس بدون این کد نمی‌تواند پایان خدمت را ثبت کند؛ کد را پیش از انجام کار در اختیار کسی قرار ندهید.</p>
+      </section>
+
+      <router-link v-if="visit.chat_open" :to="{ name: 'clientVisitChat', params: { id: visit.id } }" class="detail-support-link detail-chat-link"><v-icon color="#1a6683" size="23">mdi-chat-processing-outline</v-icon><span><strong>گفتگو با کارشناس اعزامی</strong><small>هماهنگی زمان حضور و دسترسی، بدون نمایش شماره تماس</small></span><v-icon color="#36758b" size="20">mdi-arrow-left</v-icon></router-link>
+
       <section class="detail-panel" aria-labelledby="asset-heading">
         <div class="detail-section-title"><span class="detail-section-icon"><v-icon color="#236180" size="22">mdi-office-building-outline</v-icon></span><div><small>محل خدمت</small><h2 id="asset-heading">ساختمان و آسانسورها</h2></div></div>
         <router-link :to="{ name: 'buildingDetail', params: { id: visit.building.id } }" class="detail-building">{{ visit.building.name }} <v-icon size="19">mdi-arrow-left</v-icon></router-link>
@@ -37,6 +45,28 @@
         <p v-if="!visit.report_version && ['2', '3'].includes(visit.status)" class="detail-report-version">این گزارش قدیمی نسخه ثابت ندارد.</p>
         <div v-if="visit.report.length" class="detail-report"><div v-for="(answer, index) in visit.report" :key="index" class="detail-answer"><strong>{{ answer.question }}</strong><span>{{ answerText(answer) }}</span></div></div>
         <p v-else class="detail-muted">{{ ['2', '3'].includes(visit.status) ? 'برای این خدمت پاسخی در گزارش ثبت نشده است.' : 'گزارش پس از پایان خدمت اینجا نمایش داده می‌شود.' }}</p>
+      </section>
+
+      <section v-if="(visit.parts && visit.parts.length) || visit.wage" class="detail-panel" aria-labelledby="parts-heading">
+        <div class="detail-section-title"><span class="detail-section-icon"><v-icon color="#236180" size="22">mdi-toolbox-outline</v-icon></span><div><small>هزینه و مواد</small><h2 id="parts-heading">قطعات و اجرت</h2></div></div>
+        <ul v-if="visit.parts && visit.parts.length" class="detail-parts"><li v-for="(part, index) in visit.parts" :key="index"><span>{{ part.name }}</span><strong>{{ Number(part.amount).toLocaleString('fa-IR') }} {{ part.unit || 'عدد' }}</strong></li></ul>
+        <p v-if="visit.wage" class="detail-wage"><span>اجرت خدمت</span><strong>{{ Number(visit.wage).toLocaleString('fa-IR') }} ریال</strong></p>
+      </section>
+
+      <section v-if="visit.photos && visit.photos.length" class="detail-panel" aria-labelledby="photos-heading">
+        <div class="detail-section-title"><span class="detail-section-icon"><v-icon color="#236180" size="22">mdi-camera-outline</v-icon></span><div><small>مدارک تصویری</small><h2 id="photos-heading">تصاویر ثبت‌شده خدمت ({{ Number(visit.photos.length).toLocaleString('fa-IR') }})</h2></div></div>
+        <div class="detail-photos-grid">
+          <div v-for="photo in visit.photos" :key="photo.id" class="photo-card" role="button" tabindex="0" @click="openPhoto(photo)" @keydown.enter="openPhoto(photo)">
+            <div class="photo-thumb-wrap">
+              <img v-if="photo.url" :src="photo.url" :alt="photo.type_name || 'تصویر خدمت'" loading="lazy" class="photo-thumb" />
+              <div v-else class="photo-placeholder"><v-icon color="#89a2b2" size="28">mdi-image-off-outline</v-icon></div>
+            </div>
+            <div class="photo-info">
+              <span class="photo-type">{{ photo.type_name || 'تصویر خدمت' }}</span>
+              <small v-if="photo.created_at" class="photo-time">{{ date(photo.created_at) }}</small>
+            </div>
+          </div>
+        </div>
       </section>
 
       <section v-if="['2', '3'].includes(visit.status)" class="detail-panel" aria-labelledby="feedback-heading">
@@ -57,6 +87,20 @@
       </section>
       <router-link :to="{ name: 'clientSupport', query: { visit: visit.id } }" class="detail-support-link"><v-icon color="#1a6683" size="23">mdi-lifebuoy</v-icon><span><strong>درباره این خدمت پرسشی دارید؟</strong><small>با پشتیبانی گفتگو کنید</small></span><v-icon color="#36758b" size="20">mdi-arrow-left</v-icon></router-link>
     </div>
+
+    <v-dialog v-model="photoDialog" max-width="520" content-class="photo-preview-dialog">
+      <v-card v-if="selectedPhoto" class="photo-preview-card" dir="rtl">
+        <v-card-title class="photo-preview-title">
+          <span>{{ selectedPhoto.type_name || 'تصویر خدمت' }}</span>
+          <v-spacer />
+          <v-btn icon @click="photoDialog = false"><v-icon>mdi-close</v-icon></v-btn>
+        </v-card-title>
+        <div class="photo-preview-body">
+          <img v-if="selectedPhoto.url" :src="selectedPhoto.url" :alt="selectedPhoto.type_name" class="photo-preview-img" />
+          <p v-else class="text-center pa-4 text--secondary">فایل تصویر در دسترس نیست.</p>
+        </div>
+      </v-card>
+    </v-dialog>
   </main>
 </template>
 
@@ -65,7 +109,7 @@ import { errorMessage } from '@/utils/clientRequests';
 
 export default {
   name: 'ClientVisitDetail',
-  data: () => ({ visit: null, loading: false, error: '', sequence: 0, pdfLoading: false, pdfError: '', feedback: null, feedbackLoading: false, feedbackSaving: false, feedbackError: '', feedbackMessage: '', rating: 0, note: '', received: false }),
+  data: () => ({ visit: null, loading: false, error: '', sequence: 0, pdfLoading: false, pdfError: '', feedback: null, feedbackLoading: false, feedbackSaving: false, feedbackError: '', feedbackMessage: '', rating: 0, note: '', received: false, photoDialog: false, selectedPhoto: null }),
   mounted() { this.load(); },
   beforeDestroy() { this.sequence += 1; },
   watch: {
@@ -83,14 +127,16 @@ export default {
   },
   methods: {
     date(value) { if (!value) return 'هنوز مشخص نشده'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'نامشخص' : parsed.toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' }); },
-    status(visit) { return visit.is_pending_request ? 'در انتظار بررسی' : ({ '0': 'در انتظار مراجعه', '1': 'در حال انجام', '2': 'انجام شده', '3': 'تأیید شده', '4': 'رد شده', '5': 'نیاز به مراجعه مجدد', '6': 'متوقف شده' }[visit.status] || 'در حال پیگیری'); },
+    status(visit) { return visit.is_pending_request ? 'در انتظار بررسی' : ({ '0': 'در انتظار مراجعه', '1': 'در حال انجام', '2': 'انجام شده', '3': 'تأیید شده', '4': 'رد شده', '5': 'در حال اصلاح گزارش', '6': 'متوقف شده' }[visit.status] || 'در حال پیگیری'); },
     explanation(visit) {
       if (visit.is_pending_request) return 'درخواست شما ثبت شده است. شرکت پس از بررسی، زمان مراجعه و کارشناس را مشخص می‌کند.';
-      return ({ '0': 'مراجعه ثبت شده و در انتظار شروع است.', '1': 'کارشناس در حال انجام خدمت است.', '2': 'خدمت انجام شده و گزارش آن در دسترس است.', '3': 'خدمت تأیید شده و گزارش آن در دسترس است.', '4': 'این مراجعه رد شده است؛ برای پیگیری با پشتیبانی تماس بگیرید.', '5': 'برای این خدمت مراجعه دوباره لازم است.', '6': 'انجام این خدمت فعلاً متوقف شده است.' })[visit.status] || 'وضعیت این خدمت در حال پیگیری است.';
+      return ({ '0': 'مراجعه ثبت شده و در انتظار شروع است.', '1': 'کارشناس در حال انجام خدمت است.', '2': 'خدمت انجام شده و گزارش آن در دسترس است.', '3': 'خدمت تأیید شده و گزارش آن در دسترس است.', '4': 'این مراجعه رد شده است؛ برای پیگیری با پشتیبانی تماس بگیرید.', '5': 'گزارش این خدمت برای اصلاح به کارشناس برگشته است؛ نسخه اصلاح‌شده پس از ثبت اینجا نمایش داده می‌شود.', '6': 'انجام این خدمت فعلاً متوقف شده است.' })[visit.status] || 'وضعیت این خدمت در حال پیگیری است.';
     },
     answerText(answer) {
       const values = [answer.dropdown, answer.radio, ...(answer.multichoice || []), answer.text, answer.description];
       if (answer.number !== null && answer.number !== undefined) values.push(Number(answer.number).toLocaleString('fa-IR'));
+      if (answer.score !== null && answer.score !== undefined) values.push(Number(answer.score).toLocaleString('fa-IR') + ' از ۵');
+      if (answer.price !== null && answer.price !== undefined) values.push(Number(answer.price).toLocaleString('fa-IR') + ' ریال');
       if (answer.bool === true) values.push('بله');
       if (answer.bool === false) values.push('خیر');
       return values.filter(value => value !== null && value !== undefined && value !== '').join('، ') || 'پاسخی ثبت نشده';
@@ -153,6 +199,10 @@ export default {
       } catch (_) { this.feedbackError = 'ثبت نظر ممکن نشد. دوباره تلاش کنید.'; }
       finally { this.feedbackSaving = false; }
     },
+    openPhoto(photo) {
+      this.selectedPhoto = photo;
+      this.photoDialog = true;
+    },
   },
 };
 </script>
@@ -179,9 +229,24 @@ export default {
 .detail-elevators { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }.detail-elevators span { display: inline-flex; align-items: center; gap: 5px; padding: 7px 9px; border-radius: 9px; background: #eff5f8; color: #385f73; font-size: 12px; }
 .detail-report { margin-top: 15px; }.detail-answer { display: grid; gap: 5px; border-top: 1px solid #edf2f5; padding: 13px 0; }.detail-answer strong { font-size: 13px; color: #173b52; }.detail-answer span { color: #405f72; font-size: 13px; overflow-wrap: anywhere; }
 .detail-report-version { margin: 14px 0 0; color: #31738a; font-size: 12px; font-weight: 700; }
+.detail-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 12px; margin-top: 16px; }
+.photo-card { display: flex; flex-direction: column; border: 1px solid #e2ecf1; border-radius: 12px; overflow: hidden; background: #fbfdfe; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.photo-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px #183f6015; }
+.photo-card:focus-visible { outline: 3px solid #328fbc; }
+.photo-thumb-wrap { width: 100%; height: 96px; background: #eaf1f5; display: grid; place-items: center; overflow: hidden; }
+.photo-thumb { width: 100%; height: 100%; object-fit: cover; }
+.photo-placeholder { display: grid; place-items: center; width: 100%; height: 100%; }
+.photo-info { padding: 8px 10px; display: grid; gap: 2px; }
+.photo-type { font-size: 12px; font-weight: 700; color: #163e58; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.photo-time { font-size: 10px; color: #678496; }
+.photo-preview-card { border-radius: 16px !important; overflow: hidden; }
+.photo-preview-title { padding: 12px 16px; font-size: 15px; background: #f2f7fa; border-bottom: 1px solid #e5edf1; color: #133a52; }
+.photo-preview-body { padding: 0; background: #000; display: grid; place-items: center; max-height: 80vh; overflow: auto; }
+.photo-preview-img { max-width: 100%; max-height: 75vh; object-fit: contain; display: block; }
 .feedback-form { margin-top: 15px; }.feedback-stars { display: flex; gap: 4px; margin-bottom: 13px; }.feedback-stars button { width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid #e4edf1; border-radius: 10px; background: #fffaf1; }.feedback-stars button:focus-visible { outline: 3px solid #328fbc; }.feedback-note { margin-top: 8px !important; }.feedback-receipt { margin: 0 0 17px !important; }.feedback-confirmed { display: inline-flex; align-items: center; gap: 5px; margin-bottom: 14px; color: #24705a; font-size: 12px; }
 .detail-support-link { display: flex; align-items: center; gap: 11px; min-height: 72px; padding: 13px 16px; border: 1px solid #cde4ec; border-radius: 16px; background: #eaf5f7; color: #17445d; text-decoration: none; }.detail-support-link span { flex: 1; display: grid; gap: 3px; }.detail-support-link strong { font-size: 13px; }.detail-support-link small { color: #56788a; font-size: 11px; }
 .detail-muted { color: #607e90; font-size: 13px; margin: 16px 0 0; }.detail-text-link { color: #21678a; font-size: 13px; font-weight: 700; }
 .client-visit-detail a:focus-visible { outline: 3px solid #4da2c8; outline-offset: 3px; }
+.detail-parts{list-style:none;margin:6px 0 0;padding:0;display:grid;gap:8px}.detail-parts li,.detail-wage{display:flex;justify-content:space-between;gap:12px;padding:10px 12px;border-radius:12px;background:#f2f8fa;font-size:13px;color:#2a4b60}.detail-wage{margin:10px 0 0;background:#eef7f1}.detail-wage strong{color:#1b6247}.detail-code-value{margin:4px 0 8px;font-size:30px;font-weight:800;letter-spacing:4px;text-align:center;color:#17394e;font-variant-numeric:tabular-nums}.detail-chat-link{margin-top:0}
 @media(max-width:350px){.detail-body{padding-left:14px;padding-right:14px}.detail-hero{padding-left:16px;padding-right:16px}.detail-panel{padding:15px}}
 </style>

@@ -12,6 +12,7 @@
 .detail-badge.status-2, .detail-badge.status-3 { color: #167348; background: #eaf7ef; }
 .detail-badge.status-1 { color: #9b6415; background: #fff6e4; }
 .detail-badge.status-4 { color: #b42335; background: #fff0f1; }
+.detail-badge.status-5 { color: #8a5814; background: #fff1d9; }
 .detail-badge.photo-status-CONFIRMED { color: #167348; background: #eaf7ef; }
 .detail-badge.photo-status-REJECTED { color: #b42335; background: #fff0f1; }
 .record-info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 22px 26px; margin: 0; }
@@ -81,8 +82,15 @@
 @media (prefers-reduced-motion: reduce) { .photo-preview img { transition: none; } }
 
 .record-detail .reject, .record-detail .detail-back { color: #536680; }
-.record-detail .reject { border-color: #dce3ef; background: #fff; }
-.record-detail .reject:hover { background: #f5f7fc; color: #345de0; border-color: #bacaf1; }
+.record-detail .reject, .modal-content .detail-form-actions .reject { border: 1px solid #dce3ef; background: #fff; }
+.modal-content .detail-form-actions .reject { min-height: 40px; padding: 8px 18px; border-radius: 8px; color: #536680; font-size: 13px; font-weight: 700; }
+.record-detail .reject:hover, .modal-content .detail-form-actions .reject:hover { background: #f5f7fc; color: #345de0; border-color: #bacaf1; }
 .record-detail .reject.danger-action { color: #b42335; border-color: #ebccd1; }
 
 .record-detail .store-form-grid .edit-container { margin-bottom: 0; }
+.detail-reason { margin: 0 0 18px; padding: 12px 14px; border-radius: 10px; background: #fff7e8; border: 1px solid #f2d9a8; color: #6c4513; font-size: 13px; line-height: 1.9; }
+.detail-reason strong { color: #5a3a0e; }
+.review-form { display: grid; gap: 8px; margin: 4px 0 16px; }
+.review-form label { font-weight: 700; font-size: 13px; color: #33415c; }
+.review-form textarea { width: 100%; min-height: 120px; padding: 10px 12px; border: 1px solid #d5ddea; border-radius: 10px; font-size: 13px; line-height: 1.9; resize: vertical; }
+.review-form textarea:focus { outline: 3px solid #b9cdf3; border-color: #4d74c9; }

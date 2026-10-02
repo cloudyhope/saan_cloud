@@ -3,6 +3,7 @@ import App from './App.vue'
 import './registerServiceWorker'
 import './utils/globalLibraries'
 import './assets/css/field-theme.css'
+import './assets/css/visit-flow.css'
 import '@mdi/font/css/materialdesignicons.css'
 import ApiServiceLayer from '@/api/apiServiceLayer';
 import router from './router'

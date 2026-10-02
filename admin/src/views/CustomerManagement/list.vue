@@ -54,12 +54,7 @@
               <td>{{ item.user.username }}</td>
               <td>{{ item.client.description }}</td>
               <td>
-                <router-link
-                  class="icon-action"
-                  :to="'/customermanagement/detail/' + item.client.id"
-                  aria-label="جزئیات مشتری"
-                  ><ActionIcon name="view"
-                /></router-link>
+                <RowActions :items="[{ label: 'جزئیات مشتری', icon: 'view', to: '/customermanagement/detail/' + item.client.id }]" />
               </td>
             </tr>
           </template>
@@ -72,8 +67,9 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     Tableview,
     Pagination,
   },

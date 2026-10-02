@@ -131,6 +131,7 @@
             <tr>
               <th>ردیف</th>
               <th>نام ساختمان</th>
+              <th>اولویت</th>
               <th>آدرس</th>
               <th>تاریخ درخواست</th>
 
@@ -152,6 +153,7 @@
                   >{{ (item.building && item.building.verbose_name) || '—' }}</span
                 >
               </td>
+              <td><PriorityBadge :score="item.priority && item.priority.score" /></td>
               <td>
                 <span class="cell-text" :title="item.building && item.building.address">{{
                   (item.building && item.building.address) || '—'
@@ -186,53 +188,19 @@
                 </select>
               </td>
               <td>
-                <select
-                  :aria-label="'وضعیت ویزیت ' + item.id"
-                  class="visit-status-select"
+                <button
+                  type="button"
+                  class="visit-status-select visit-status-badge"
                   :class="'visit-status-' + item.status"
-                  v-model="item.status"
-                  @change="changeVisitStatus(item)"
+                  :aria-label="'وضعیت: ' + statusTitle(item.status) + ' — مشاهده مأموریت ' + item.id"
+                  @click="visitDetail(item.id)"
                 >
-                  <option value="0">ویزیت نشده</option>
-                  <option value="1">تکمیل نشده</option>
-                  <option value="2">تکمیل شده</option>
-                  <option value="3">تایید شده</option>
-                  <option value="4">رد شده</option>
-                  <option value="5">ویزیت مجدد</option>
-                </select>
+                  {{ statusTitle(item.status) }}
+                </button>
               </td>
 
               <td class="actions-cell">
-                <div class="action-buttons">
-                  <button
-                    type="button"
-                    class="icon-action"
-                    @click="visitDetail(item.id)"
-                    aria-label="جزئیات"
-                    title="جزئیات"
-                  >
-                    <ActionIcon name="view" />
-                  </button>
-
-                  <button
-                    type="button"
-                    class="icon-action"
-                    @click="elevatorItemFunc(item.elevator)"
-                    aria-label="آسانسور"
-                    title="آسانسور"
-                  >
-                    <ActionIcon name="elevator" />
-                  </button>
-                  <button
-                    type="button"
-                    class="icon-action"
-                    @click="deleteItemFunc(item.id)"
-                    aria-label="حذف"
-                    title="حذف"
-                  >
-                    <ActionIcon name="delete" />
-                  </button>
-                </div>
+                <RowActions :items="[{ label: 'جزئیات مأموریت', icon: 'view', action: () => visitDetail(item.id) }, { label: 'آسانسور', icon: 'elevator', action: () => elevatorItemFunc(item.elevator) }, { label: 'حذف', icon: 'delete', action: () => deleteItemFunc(item.id), danger: true }]" />
               </td>
             </tr>
           </template>
@@ -328,12 +296,15 @@
 </template>
 <script>
 import DisplayDate from '@/components/DisplayDate/index.vue';
+import PriorityBadge from '@/components/PriorityBadge.vue';
 import FilterPanel from '../../components/FilterPanel/index.vue';
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
+    PriorityBadge,
     DisplayDate,
     FilterPanel,
     Tableview,
@@ -361,10 +332,12 @@ export default {
       elevatorItemModal: false,
       page: 1,
       totalDataCount: 0,
-      selected: '-id',
+      // Most sensitive work first, so planners assign it before the rest.
+      selected: '-priority_rank',
       options: [
-        { item: '-id', name: 'نزولی' },
-        { item: 'id', name: 'صعودی' },
+        { item: '-priority_rank', name: 'بیشترین اولویت' },
+        { item: '-id', name: 'جدیدترین' },
+        { item: 'id', name: 'قدیمی‌ترین' },
       ],
       rangeDate: ['', ''],
       deleteItemModal: false,
@@ -529,30 +502,18 @@ export default {
         this.provinceLists = res.data;
       }
     },
-    async changeVisitStatus(item) {
-      const res = await this.$ApiServiceLayer.patch(
-        this.$PATH.RELATIVE_PATH.MULTI.VISITS_STATUS +
-          item.id +
-          '/' +
-          '?p=' +
-          this.$STORE.state.userConfig.setProjectId,
-        this.$PATH.SERVICE_NAME.AUTH,
-        { status: item.status, rejection_reason: item.status === '4' ? 'nadarad' : '' }
+    statusTitle(status) {
+      return (
+        {
+          0: 'شروع نشده',
+          1: 'در حال اجرا',
+          2: 'منتظر بررسی',
+          3: 'تأیید شده',
+          4: 'رد شده',
+          5: 'برگشت برای اصلاح',
+          6: 'متوقف',
+        }[status] || 'نامشخص'
       );
-      if (res.status === 200) {
-        this.$notify({
-          group: 'tc',
-          type: 'success',
-          text: 'وضعیت با موفقیت تغییر پیدا کرد!',
-        });
-        if (item.status === '5') {
-          this.tableSelectedPromoter = item.promoter;
-          this.visitTypeSelected = item.type.id;
-          this.username = item.promoter.username || '';
-          this.buildingCode = item.building.code;
-          this.editVisitModal = true;
-        }
-      }
     },
     deleteItemFunc(ids) {
       this.deleteItemModal = !this.deleteItemModal;

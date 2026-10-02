@@ -1,415 +1,323 @@
 <template>
-  <div>
-    <BaseTopBar title="بارگزاری عکس ورود" />
-
-    <FullLoading v-if="loading" />
-    <div class="mx-6 my-3">
-      <!-- <span class="titles">حداقل {{ minImg }} عکس</span> -->
-      <div class="desc">
-        <span>{{ desc }}</span>
+  <main class="vf-page photo-page" dir="rtl">
+    <VisitTopBar
+      :title="title"
+      :eyebrow="eyebrow"
+      :fallback="{ name: 'storeDetail', params: { id: visitId } }"
+      back-label="بازگشت به مأموریت"
+    >
+      <div class="photo-hero-meta">
+        <span class="vf-chip" :class="enough ? 'vf-tone-done' : 'vf-tone-warning'">
+          <v-icon size="15">{{ enough ? 'mdi-check-circle-outline' : 'mdi-camera-plus-outline' }}</v-icon>
+          {{ faNumber(images.length) }} عکس ثبت‌شده
+        </span>
+        <span v-if="minimum" class="vf-chip hero-chip">حداقل {{ faNumber(minimum) }}</span>
+        <span v-else class="vf-chip hero-chip">اختیاری</span>
+        <span v-if="maximum" class="vf-chip hero-chip">حداکثر {{ faNumber(maximum) }}</span>
       </div>
-      <v-card
-        v-if="isCaptureSupported"
-        elevation="0"
-        color="#FFF"
-        class="imagess pa-6 my-3"
-      >
-        <div @click="uploadImage" class="upload-img">
-          <v-img max-width="36" src="@/assets/images/Icons/ic_round-plus.svg" />
+    </VisitTopBar>
+
+    <div class="vf-body">
+      <div v-if="loadError" class="vf-banner vf-banner-danger" role="alert">
+        <v-icon color="#8a2f2a">mdi-alert-circle-outline</v-icon>
+        <div><strong>عکس‌ها دریافت نشد</strong><p>{{ loadError }}</p>
+          <button type="button" class="vf-banner-action" @click="load"><v-icon size="16">mdi-refresh</v-icon>تلاش دوباره</button></div>
+      </div>
+      <div v-else-if="settingsLoaded && !editable" class="vf-banner vf-banner-info" role="note">
+        <v-icon color="#1d4f6d">mdi-lock-outline</v-icon>
+        <div><strong>فقط مشاهده</strong><p>{{ readonlyReason }}</p></div>
+      </div>
+
+      <section class="vf-card guide-card" aria-labelledby="guide-heading">
+        <div class="vf-card-title"><h2 id="guide-heading"><v-icon size="19" color="#1d608b">mdi-lightbulb-on-outline</v-icon> راهنمای عکس</h2></div>
+        <p class="guide-text">{{ guide }}</p>
+        <ul class="guide-list">
+          <li><v-icon size="16" color="#1a7154">mdi-check</v-icon>عکس واضح، با نور کافی و بدون لرزش بگیرید.</li>
+          <li><v-icon size="16" color="#1a7154">mdi-check</v-icon>برای ثبت موقعیت، دسترسی مکان را در مرورگر مجاز کنید.</li>
+          <li v-if="maximum"><v-icon size="16" color="#1a7154">mdi-check</v-icon>حداکثر {{ faNumber(maximum) }} عکس برای این بخش قابل ثبت است.</li>
+        </ul>
+      </section>
+
+      <div v-if="uploadError" class="vf-banner vf-banner-danger" role="alert">
+        <v-icon color="#8a2f2a">mdi-alert-circle-outline</v-icon><div><strong>عکس ثبت نشد</strong><p>{{ uploadError }}</p></div>
+      </div>
+
+      <section aria-labelledby="gallery-heading">
+        <div class="vf-section-label gallery-label"><h2 id="gallery-heading">عکس‌های ثبت‌شده</h2><span v-if="maximum">{{ faNumber(images.length) }} از {{ faNumber(maximum) }}</span></div>
+        <div v-if="loading && !images.length" class="gallery">
+          <v-skeleton-loader v-for="n in 3" :key="n" class="tile-skeleton" type="image" />
         </div>
-        <div v-for="image in images" :key="image.id" class="image">
-          <div class="parent">
-            <img class="img" :src="image.link" />
-            <div @click="postId(image.id)" class="text-block">
-              <img class="trash-icon" src="@/assets/images/Icons/trash.svg" />
-            </div>
+        <div v-else class="gallery">
+          <template v-if="canAdd">
+            <button type="button" class="add-tile is-camera" :disabled="uploading" @click="pick('camera')">
+              <v-icon size="30" color="#1d608b">mdi-camera-outline</v-icon><span>گرفتن عکس</span>
+            </button>
+            <button type="button" class="add-tile" :disabled="uploading" @click="pick('gallery')">
+              <v-icon size="28" color="#4f7389">mdi-image-multiple-outline</v-icon><span>انتخاب از گالری</span>
+            </button>
+          </template>
+          <div v-for="item in uploadingTiles" :key="item.key" class="photo-tile is-uploading" role="status">
+            <v-progress-circular indeterminate size="28" width="3" color="#1d608b" /><span>{{ item.label }}</span>
+          </div>
+          <button v-for="(image, index) in images" :key="image.id" type="button" class="photo-tile" @click="open(index)"
+                  :aria-label="'نمایش عکس ' + faNumber(index + 1)">
+            <img :src="image.link" :alt="title + ' ' + faNumber(index + 1)" loading="lazy" />
+            <span class="tile-badge">{{ faNumber(index + 1) }}</span>
+            <span v-if="image.latitude && image.longitude" class="tile-geo" title="موقعیت ثبت شده"><v-icon size="13" color="white">mdi-map-marker</v-icon></span>
+          </button>
+        </div>
+        <EmptyState v-if="!loading && !images.length && !canAdd" kind="photos" size="sm" title="برای این بخش عکسی ثبت نشده" description="" />
+        <p v-if="editable && maximum && images.length >= maximum" class="vf-muted max-note">به حداکثر تعداد عکس رسیده‌اید؛ برای عکس تازه، یکی را حذف کنید.</p>
+      </section>
+      <input ref="camera" type="file" accept="image/*" capture="environment" hidden @change="onFiles" />
+      <input ref="gallery" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden @change="onFiles" />
+    </div>
+
+    <footer v-if="settingsLoaded" class="vf-actionbar">
+      <p v-if="editable && !enough" class="vf-actionbar-note is-danger">برای تکمیل این بخش {{ faNumber(minimum - images.length) }} عکس دیگر لازم است.</p>
+      <div class="vf-actionbar-row">
+        <button type="button" class="vf-btn vf-btn-ghost" @click="backToVisit"><v-icon size="19">mdi-format-list-checks</v-icon>مراحل مأموریت</button>
+        <button v-if="nextStep" type="button" class="vf-btn vf-btn-primary" @click="goNext">بخش بعد<v-icon color="white" size="19">mdi-arrow-left</v-icon></button>
+      </div>
+    </footer>
+
+    <v-dialog v-model="viewer" fullscreen hide-overlay transition="dialog-bottom-transition">
+      <div v-if="current" class="viewer" role="dialog" aria-label="نمایش عکس">
+        <div class="viewer-top">
+          <button type="button" class="viewer-btn" aria-label="بستن" @click="viewer = false"><v-icon color="white">mdi-close</v-icon></button>
+          <span>{{ faNumber(viewerIndex + 1) }} از {{ faNumber(images.length) }}</span>
+          <button v-if="editable" type="button" class="viewer-btn danger" aria-label="حذف عکس" @click="confirmDelete = true"><v-icon color="white">mdi-trash-can-outline</v-icon></button>
+          <span v-else class="viewer-spacer" />
+        </div>
+        <div class="viewer-stage">
+          <button v-if="images.length > 1" type="button" class="viewer-nav" aria-label="عکس قبلی" @click="step(-1)"><v-icon color="white" size="30">mdi-chevron-right</v-icon></button>
+          <img :src="current.link" :alt="title" />
+          <button v-if="images.length > 1" type="button" class="viewer-nav" aria-label="عکس بعدی" @click="step(1)"><v-icon color="white" size="30">mdi-chevron-left</v-icon></button>
+        </div>
+        <p class="viewer-meta">{{ faDate(current.datetime_created, true) }} · {{ current.latitude && current.longitude ? 'با موقعیت مکانی' : 'بدون موقعیت مکانی' }}</p>
+      </div>
+    </v-dialog>
+
+    <v-bottom-sheet v-model="confirmDelete" max-width="576px">
+      <v-sheet class="vf-sheet">
+        <div class="vf-sheet-handle" aria-hidden="true" />
+        <div class="delete-sheet">
+          <v-icon color="#a33a35" size="38">mdi-trash-can-outline</v-icon>
+          <h2>این عکس حذف شود؟</h2>
+          <p>عکس از گزارش این مأموریت حذف می‌شود.</p>
+          <div class="vf-actionbar-row">
+            <button type="button" class="vf-btn vf-btn-ghost" :disabled="deleting" @click="confirmDelete = false">انصراف</button>
+            <button type="button" class="vf-btn vf-btn-danger" :disabled="deleting" @click="remove">
+              <v-progress-circular v-if="deleting" indeterminate size="18" width="2" color="#a33a35" /><template v-else>حذف عکس</template>
+            </button>
           </div>
         </div>
-        <v-bottom-sheet
-          :retain-focus="false"
-          max-width="576px"
-          v-model="deleteImage"
-        >
-          <v-sheet
-            :retain-focus="false"
-            class="modals pt-4 px-6"
-            height="128px"
-          >
-            <span class="address-detail"
-              >آیا از حذف این عکس اطمینان دارید؟</span
-            >
-            <div class="d-flex justify-space-between mt-5">
-              <Button
-                @click="deleteImg(idImg)"
-                class="delete-button ml-4"
-                title="حذف"
-              />
-              <Button
-                @click="deleteImage = !deleteImage"
-                class="decline-button ml-0"
-                title="خیر"
-              />
-            </div>
-          </v-sheet>
-        </v-bottom-sheet>
-        <input
-          v-if="isCaptureSupported"
-          type="file"
-          capture="user"
-          accept="image/*"
-          id="fileUpload"
-          @change="func($event)"
-          hidden
-        />
-        <v-snackbar v-model="snackbar" :timeout="timeout" top>
-          {{ snackbarText }}
-        </v-snackbar>
-      </v-card>
-      <h3 v-else>لطفا از طریق مرورگر chrome وارد SaanApp شوید!</h3>
-    </div>
-  </div>
+      </v-sheet>
+    </v-bottom-sheet>
+    <v-snackbar v-model="toast" :timeout="2400" top color="#15364f">{{ toastText }}</v-snackbar>
+  </main>
 </template>
+
 <script>
-import Topbar from "../../components/Topbar/backTopBar.vue";
-import Button from "../../components/Button/Button.vue";
-import FullLoading from "../../components/Loading/fullLoading.vue";
-import Compressor from "compressorjs";
-import BaseTopBar from "@/components/Topbar/BaseTopbar.vue";
+import VisitTopBar from '@/components/Visit/VisitTopBar.vue';
+import { errorMessage } from '@/utils/clientRequests';
+import { faDate, faNumber, startVisit, withProject } from '@/utils/visitFlow';
+import { locate, shrinkImage, uploadName } from '@/utils/photoUpload';
 
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
-  name: "Profile",
-  components: {
-    Topbar,
-    Button,
-    FullLoading,
-    BaseTopBar,
-  },
-  data() {
-    return {
-      images: [],
-      visitId: null,
-      latitude: null,
-      longitude: null,
-      minImg: null,
-      deleteImage: false,
-      snackbar: false,
-      snackbarText: '',
-      timeout: 2000,
-      loading: false,
-      idImg: null,
-      desc: null,
-      deleteAddress: false,
-      imageUrl: "",
-    };
-  },
-
+  name: 'PhotoStep',
+  components: { EmptyState, VisitTopBar },
+  data: () => ({
+    images: [], photoType: null, settings: null, settingsLoaded: false, loading: true, loadError: '', uploadError: '',
+    uploading: false, uploadingTiles: [], viewer: false, viewerIndex: 0, confirmDelete: false, deleting: false,
+    toast: false, toastText: '', latitude: null, longitude: null, sequence: 0,
+  }),
   computed: {
-    isCaptureSupported() {
-      const input = document.createElement("input");
-      input.type = "file";
-      return input.type === "file";
+    visitId() { return this.$route.params.id; },
+    typeId() { return Number(this.$route.params.type); },
+    visit() { return this.settings && this.settings.visit; },
+    settingsType() { return this.settings ? (this.settings.photos || []).find(item => item.id === this.typeId) : null; },
+    type() { return this.settingsType || this.photoType || {}; },
+    title() { return this.type.verbose_name || this.type.name || 'ثبت عکس'; },
+    guide() { return (this.type.description || '').trim() || 'از بخش مشخص‌شده عکسی بگیرید که جزئیات کار به‌وضوح دیده شود.'; },
+    minimum() { return Math.max(Number(this.type.min) || 0, this.type.is_mandatory ? 1 : 0); },
+    maximum() { return Number(this.type.max) || 0; },
+    enough() { return this.images.length >= this.minimum; },
+    editable() { return !!(this.settings && this.settings.editable); },
+    canAdd() { return this.editable && (!this.maximum || this.images.length + this.uploadingTiles.length < this.maximum); },
+    current() { return this.images[this.viewerIndex] || null; },
+    steps() {
+      if (!this.settings) return [];
+      return [...(this.settings.questions || []).map(item => ({ kind: 'question', item })),
+        ...(this.settings.photos || []).map(item => ({ kind: 'photo', item }))];
+    },
+    stepIndex() { return this.steps.findIndex(step => step.kind === 'photo' && step.item.id === this.typeId); },
+    nextStep() { return this.stepIndex >= 0 ? this.steps[this.stepIndex + 1] || null : null; },
+    eyebrow() {
+      const building = this.visit && this.visit.building;
+      const name = building ? (building.verbose_name || building.name) : '';
+      return this.stepIndex >= 0 ? `بخش ${faNumber(this.stepIndex + 1)} از ${faNumber(this.steps.length)}${name ? ' · ' + name : ''}` : name;
+    },
+    readonlyReason() {
+      if (this.settings && !this.settings.is_assignee) return 'شما مجری این مأموریت نیستید.';
+      const status = this.visit && this.visit.status;
+      return status === '2' ? 'گزارش ثبت شده و در انتظار بررسی است؛ تغییر عکس ممکن نیست.'
+        : status === '3' ? 'گزارش تأیید شده و بسته است.' : status === '4' ? 'گزارش رد شده و بسته است.'
+          : 'این مأموریت برای ثبت عکس باز نیست.';
     },
   },
-
-  mounted() {
-    this.getImages();
-    this.getDescription();
-  },
+  watch: { '$route.params': { handler: 'load' }, images() { if (this.viewerIndex >= this.images.length) this.viewerIndex = Math.max(0, this.images.length - 1); } },
+  created() { this.load(); },
+  beforeDestroy() { this.sequence++; },
   methods: {
-    async locateForUpload() {
-      if (!navigator.geolocation) return;
-      await new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            this.latitude = position.coords.latitude;
-            this.longitude = position.coords.longitude;
-            resolve();
-          },
-          () => resolve(),
-          { timeout: 5000, maximumAge: 60000 }
-        );
-      });
-    },
-    postId(id) {
-      this.idImg = id;
-      this.deleteImage = !this.deleteImage;
-    },
-    async getImages() {
-      const url = window.location.href;
-      const type = url.split("/").slice(-2)[0];
-      this.visitId = url.split("/").slice(-1)[0];
-      this.minImg = url.split("/").slice(-3)[0];
-      "typessss", type;
-      const res = await this.$ApiServiceLayer.get(
-        this.$PATH.RELATIVE_PATH.GET.GET_IMAGES_ALBUM +
-          "?type=" +
-          type +
-          "&p=" +
-          this.$STORE.state.userConfig.selectedProject +
-          "&visit=" +
-          this.visitId,
-        this.$PATH.SERVICE_NAME.AUTH
-      );
-      if (res.status === 200) {
-        res;
-        this.images = res.data;
+    faNumber, faDate,
+    notify(text) { this.toastText = text; this.toast = true; },
+    async load() {
+      const sequence = ++this.sequence;
+      this.loading = true; this.loadError = '';
+      try {
+        const [settings, photos, type] = await Promise.all([
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.VISIT_PAGE_SETTING + this.visitId + '/'), this.$PATH.SERVICE_NAME.AUTH),
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.GET_IMAGES_ALBUM, { type: this.typeId, visit: this.visitId, ordering: 'id' }), this.$PATH.SERVICE_NAME.AUTH),
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.PHOTO_DESC + this.typeId + '/'), this.$PATH.SERVICE_NAME.AUTH),
+        ]);
+        if (sequence !== this.sequence) return;
+        if (settings.status === 200) { this.settings = settings.data; this.settingsLoaded = true; }
+        if (type.status === 200) this.photoType = type.data;
+        if (photos.status !== 200) { this.loadError = errorMessage(photos); return; }
+        this.images = Array.isArray(photos.data) ? photos.data : photos.data.results || [];
+      } catch (_) {
+        if (sequence === this.sequence) this.loadError = 'اتصال برقرار نشد. اینترنت را بررسی و دوباره تلاش کنید.';
+      } finally {
+        if (sequence === this.sequence) this.loading = false;
       }
     },
-    async getDescription() {
-      const url = window.location.href;
-      const type = url.split("/").slice(-2)[0];
-      const res = await this.$ApiServiceLayer.get(
-        this.$PATH.RELATIVE_PATH.GET.PHOTO_DESC + type + "/" + "?p=" + this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH,
-        {}
-      );
-      if (res.status === 200) {
-        this.desc = res.data.description;
-      }
+    pick(source) {
+      this.uploadError = '';
+      const input = this.$refs[source];
+      if (input) { input.value = ''; input.click(); }
     },
-    uploadImage() {
-      document.getElementById("fileUpload").click();
-    },
-    async changeStatus() {
-      const res = await this.$ApiServiceLayer.put(
-        this.$PATH.RELATIVE_PATH.MULTI.GET_STATUS_QUESTIONS +
-          this.visitId +
-          "/" +
-          "?p=" +
-          this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH,
-        { status: "1" }
-      );
-      "status:", res;
-    },
-    // async func(event) {
-    //   this.loading = true;
-    //   const file = event.target.files[0];
-    //   const options = {
-    //     quality: 0.7, // set compression quality
-    //     success: async (compressedResult) => {
-    //       const formData = new FormData();
-    //       formData.append("link", compressedResult, compressedResult.name);
-    //       const url = window.location.href;
-    //       const lastParam = url.split("/").slice(-2)[0];
-    //       formData.append("latitude", this.latitude);
-    //       // formData.append("latitude", "10");
-    //       formData.append("longitude", this.longitude);
-    //       // formData.append("longitude", "10");
-    //       formData.append("visit", this.visitId);
-    //       formData.append("type", lastParam);
-    //       const res = await this.$ApiServiceLayer.post(
-    //         this.$PATH.RELATIVE_PATH.POST.UPLOAD_IMAGE,
-    //         this.$PATH.SERVICE_NAME.AUTH,
-    //         formData,
-    //         {
-    //           "Content-Type": "multipart/form-data",
-    //         }
-    //       );
-    //       (res);
-    //       if (res.status === 200) {
-    //         this.loading = false;
-    //         this.snackbar = true;
-    //         this.changeStatus();
-    //         this.getImages();
-    //       }
-    //     },
-    //   };
-    //   new Compressor(file, options);
-    // },
-    async func(event) {
-      const file = event.target.files[0];
-      if (!file) return;
-      this.loading = true;
-      await this.locateForUpload();
-
-      // Create a canvas element to convert the image to WebP format
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d");
-      const img = new Image();
-      const imageUrl = URL.createObjectURL(file);
-
-      img.onload = async () => {
-        // Desired maximum width and height for the image
-        const MAX_WIDTH = 1920; // Higher max width for better resolution
-        const MAX_HEIGHT = 1080; // Higher max height for better resolution
-
-        // Calculate the scaling factor to maintain the aspect ratio
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
+    async onFiles(event) {
+      const files = Array.from(event.target.files || []);
+      if (!files.length || this.uploading) return;
+      const room = this.maximum ? this.maximum - this.images.length : files.length;
+      if (room <= 0) { this.uploadError = 'به حداکثر تعداد عکس این بخش رسیده‌اید.'; return; }
+      const batch = files.slice(0, room);
+      if (files.length > room) this.uploadError = `فقط ${faNumber(room)} عکس دیگر قابل ثبت است؛ بقیه کنار گذاشته شد.`;
+      this.uploading = true;
+      try {
+        if (this.visit && ['0', '5', '6'].includes(this.visit.status)) {
+          const started = await startVisit(this.$ApiServiceLayer, this.$PATH, this.visitId);
+          if (!started.ok) { this.uploadError = started.message; return; }
+          this.settings.visit = { ...this.visit, status: '1' };
+        }
+        ({ latitude: this.latitude, longitude: this.longitude } = await locate());
+        let sent = 0;
+        for (const [index, file] of batch.entries()) {
+          const tile = { key: Date.now() + '-' + index, label: batch.length > 1 ? `ارسال ${faNumber(index + 1)} از ${faNumber(batch.length)}` : 'در حال ارسال…' };
+          this.uploadingTiles.push(tile);
+          try {
+            const ok = await this.upload(file);
+            if (ok) sent += 1;
+          } finally {
+            this.uploadingTiles = this.uploadingTiles.filter(item => item !== tile);
           }
         }
-
-        // Set canvas dimensions to the resized image
-        canvas.width = width;
-        canvas.height = height;
-
-        // Draw the resized image onto the canvas
-        ctx.drawImage(img, 0, 0, width, height);
-        URL.revokeObjectURL(imageUrl);
-
-        // Convert the canvas content to WebP format with higher quality
-        canvas.toBlob(
-          async (webpBlob) => {
-            if (!webpBlob) {
-              this.loading = false;
-              this.snackbarText = 'پردازش عکس انجام نشد.';
-              this.snackbar = true;
-              return;
-            }
-            const options = {
-              quality: 0.6,
-              success: async (compressedResult) => {
-                const formData = new FormData();
-                const fileName = file.name
-                  ? file.name.replace(/\.[^/.]+$/, ".webp")
-                  : "image.webp";
-
-                formData.append("link", compressedResult, fileName); // Ensure the filename ends with .webp
-                const url = window.location.href;
-                const lastParam = url.split("/").slice(-2)[0];
-                formData.append("latitude", this.latitude);
-                formData.append("longitude", this.longitude);
-                formData.append("visit", this.visitId);
-                formData.append("type", lastParam);
-
-                const res = await this.$ApiServiceLayer.post(
-                  this.$PATH.RELATIVE_PATH.POST.UPLOAD_IMAGE +
-                    "?p=" +
-                    this.$STORE.state.userConfig.selectedProject,
-                  this.$PATH.SERVICE_NAME.AUTH,
-                  formData,
-                  {
-                    "Content-Type": "multipart/form-data",
-                  }
-                );
-
-                if (res.status === 200) {
-                  this.loading = false;
-                  this.snackbarText = 'عکس با موفقیت ارسال شد.';
-                  this.snackbar = true;
-                  this.changeStatus();
-                  this.getImages();
-                } else {
-                  this.loading = false;
-                  this.snackbarText = 'ارسال عکس انجام نشد. فایل یا دسترسی مأموریت را بررسی کنید.';
-                  this.snackbar = true;
-                }
-              },
-              error: () => {
-                this.loading = false;
-                this.snackbarText = 'پردازش عکس انجام نشد.';
-                this.snackbar = true;
-              },
-            };
-
-            // Use the Compressor library to compress the WebP blob
-            new Compressor(webpBlob, options);
-          },
-          "image/webp",
-          0.6
-        ); // Set quality to 0.9 for less compression loss
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(imageUrl);
-        this.loading = false;
-        this.snackbarText = 'فایل عکس قابل خواندن نیست.';
-        this.snackbar = true;
-      };
-      img.src = imageUrl;
+        if (sent) {
+          this.notify(sent > 1 ? `${faNumber(sent)} عکس ثبت شد.` : 'عکس ثبت شد.');
+          await this.load();
+        }
+      } finally {
+        this.uploading = false;
+      }
     },
-
-    deleteImg(id) {
-      this.$ApiServiceLayer
-        .delete(
-          this.$PATH.RELATIVE_PATH.DELETE.DELETE_IMAGE +
-            id +
-            "/" +
-            "?p=" +
-            this.$STORE.state.userConfig.selectedProject,
-          this.$PATH.SERVICE_NAME.AUTH
-        )
-        .then((response) => {
-          if (response.status === 204) {
-            this.deleteImage = false;
-            this.getImages();
-          }
-        });
+    async upload(file) {
+      if (!/^image\//.test(file.type || 'image/')) { this.uploadError = 'فقط فایل تصویر قابل ثبت است.'; return false; }
+      let blob;
+      try { blob = await shrinkImage(file); } catch (_) { this.uploadError = 'فایل عکس قابل خواندن نیست.'; return false; }
+      const form = new FormData();
+      form.append('link', blob, uploadName(file, blob));
+      form.append('visit', this.visitId);
+      form.append('type', this.typeId);
+      form.append('latitude', this.latitude == null ? '' : this.latitude);
+      form.append('longitude', this.longitude == null ? '' : this.longitude);
+      try {
+        const response = await this.$ApiServiceLayer.post(withProject(this.$PATH.RELATIVE_PATH.POST.UPLOAD_IMAGE),
+          this.$PATH.SERVICE_NAME.AUTH, form, { 'Content-Type': 'multipart/form-data' });
+        if (response.status === 200) return true;
+        this.uploadError = response.status === 404 ? 'این مأموریت برای ثبت عکس باز نیست.' : errorMessage(response);
+      } catch (_) {
+        this.uploadError = 'ارسال عکس انجام نشد. اتصال را بررسی و دوباره تلاش کنید.';
+      }
+      return false;
+    },
+    open(index) { this.viewerIndex = index; this.viewer = true; },
+    step(delta) { const count = this.images.length; this.viewerIndex = (this.viewerIndex + delta + count) % count; },
+    async remove() {
+      if (!this.current || this.deleting) return;
+      this.deleting = true;
+      try {
+        const response = await this.$ApiServiceLayer.delete(
+          withProject(this.$PATH.RELATIVE_PATH.DELETE.DELETE_IMAGE + this.current.id + '/'), this.$PATH.SERVICE_NAME.AUTH);
+        if (response.status === 204) {
+          this.confirmDelete = false;
+          this.viewer = false;
+          this.notify('عکس حذف شد.');
+          await this.load();
+        } else {
+          this.confirmDelete = false;
+          this.uploadError = response.status === 404 ? 'این عکس قابل حذف نیست؛ مأموریت بسته است یا عکس متعلق به شما نیست.' : errorMessage(response);
+        }
+      } catch (_) {
+        this.uploadError = 'حذف عکس انجام نشد. دوباره تلاش کنید.';
+      } finally { this.deleting = false; }
+    },
+    backToVisit() { this.$router.push({ name: 'storeDetail', params: { id: this.visitId } }); },
+    goNext() {
+      const step = this.nextStep;
+      if (!step) return this.backToVisit();
+      if (step.kind === 'question') return this.$router.push({ name: 'shelfQuestion', params: { type: step.item.id, id: this.visitId } });
+      const min = Math.max(step.item.min || 0, step.item.is_mandatory ? 1 : 0);
+      return this.$router.push({ name: 'pickImage', params: { type: step.item.id, id: this.visitId, minImg: min } });
     },
   },
 };
 </script>
+
 <style scoped>
-.containers {
-  margin: 24px;
-}
-/* .titles {
-  font-size: 16px;
-} */
-.desc {
-  margin-top: 12px;
-  padding: 16px;
-  background: #eaf2f9;
-  border-radius: 4px;
-  padding: 12px;
-}
-.upload-img {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background-image: url("@/assets/images/Icons/border.svg");
-  border-radius: 4px !important;
-  height: 129px;
-  width: 129px;
-  padding: 80px;
-}
-.imagess {
-  display: flex;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  margin-bottom: 6px;
-  box-shadow: 0px 4px 4px rgba(214, 214, 214, 0.6) !important;
-}
-.modals {
-  border-radius: 8px 8px 0 0;
-}
-.parent {
-  position: relative;
-}
-.img {
-  height: 129px;
-  width: 129px;
-  margin-bottom: 4px;
-  border-radius: 4px;
-}
-.decline-button {
-  border: 1px solid #357ae1;
-  background: #fff;
-  color: #357ae1;
-}
-.text-block {
-  position: absolute;
-  bottom: 0px;
-  width: 100%;
-  background-color: #fff;
-  opacity: 0.8;
-  color: white;
-  display: flex;
-  justify-content: center;
-  height: 36px;
-  padding-bottom: 10px;
-}
-.trash-icon {
-  width: 20px;
-}
+.photo-hero-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.hero-chip { background: #ffffff1f; color: #e8f5fb; border: 1px solid #ffffff3a; }
+.guide-card .vf-card-title h2 { display: flex; align-items: center; gap: 6px; }
+.guide-text { margin: 0 0 10px; font-size: 13.5px; color: #2a4b60; line-height: 1.9; white-space: pre-line; }
+.guide-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 6px; }
+.guide-list li { display: flex; gap: 6px; align-items: flex-start; font-size: 12.5px; color: var(--vf-muted); line-height: 1.7; }
+.guide-list .v-icon { margin-top: 3px; }
+.gallery-label { margin-bottom: 10px; }
+.gallery { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; }
+@media (max-width: 360px) { .gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.add-tile, .photo-tile, .tile-skeleton { aspect-ratio: 1 / 1; border-radius: 16px; overflow: hidden; }
+.add-tile { display: grid; place-content: center; justify-items: center; gap: 4px; border: 2px dashed #b9d0dd; background: #f8fbfd;
+  color: #33566b; font-size: 12px; font-weight: 800; }
+.add-tile.is-camera { border-color: #6ea9cb; background: #eef7fc; color: #1d608b; }
+.add-tile:disabled { opacity: .6; }
+.photo-tile { position: relative; padding: 0; border: 1px solid var(--vf-line); background: #e9f0f4; }
+.photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-tile.is-uploading { display: grid; place-content: center; justify-items: center; gap: 6px; color: var(--vf-muted); font-size: 11px; font-weight: 700; }
+.tile-badge { position: absolute; top: 6px; right: 6px; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 8px; background: #102f4dcc;
+  color: #fff; font-size: 11.5px; font-weight: 800; display: grid; place-items: center; }
+.tile-geo { position: absolute; bottom: 6px; left: 6px; width: 22px; height: 22px; border-radius: 7px; background: #1a7154d9; display: grid; place-items: center; }
+.max-note { margin: 10px 2px 0; }
+.viewer { min-height: 100vh; background: #0b1a26; color: #fff; display: flex; flex-direction: column; }
+.viewer-top { display: flex; align-items: center; justify-content: space-between; padding: calc(12px + env(safe-area-inset-top)) 14px 10px; font-weight: 700; }
+.viewer-btn { width: 44px; height: 44px; border-radius: 13px; background: #ffffff1c; display: grid; place-items: center; }
+.viewer-btn.danger { background: #a33a35; }
+.viewer-spacer { width: 44px; }
+.viewer-stage { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 0 6px; }
+.viewer-stage img { max-width: calc(100% - 100px); max-height: 74vh; object-fit: contain; border-radius: 12px; }
+.viewer-nav { flex: none; width: 44px; height: 64px; border-radius: 13px; background: #ffffff14; display: grid; place-items: center; }
+.viewer-meta { text-align: center; color: #b9d0dd; font-size: 12px; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); margin: 0; }
+.delete-sheet { text-align: center; padding: 4px 4px 6px; }
+.delete-sheet h2 { font-size: 17px; font-weight: 800; margin: 6px 0 4px; }
+.delete-sheet p { color: var(--vf-muted); font-size: 13px; margin: 0 0 16px; }
 </style>

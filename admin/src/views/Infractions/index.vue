@@ -96,37 +96,8 @@
 								/>
 							</td>
 							<td>
-								<div class="d-flex justify-content-center">
-									<b-button class="p-1" v-b-tooltip.hover title="تاریخچه گزارشات" variant="primary">
-										<img
-											@click="action(item.visit.outlet.id)"
-											class="eye-icon"
-											src="../../assets/images/iconPack/actions.png"
-										/>
-									</b-button>
-									<b-button class="p-1" v-b-tooltip.hover title="مشاهده ویزیت" variant="primary">
-										<img
-											@click="detail(item.visit.id)"
-											class="eye-icon"
-											src="../../assets/images/iconPack/eye.svg"
-										/>
-									</b-button>
-									<b-button class="p-1" v-b-tooltip.hover title="نمایش بازخورد" variant="primary">
-										<img
-											v-if="!item.visit.visit_comment"
-											@click="comment(item.visit.id)"
-											class="eye-icon"
-											src="../../assets/images/iconPack/outline-mode-comment.svg"
-										/>
-										<img
-											v-if="item.visit.visit_comment"
-											@click="comment(item.visit.id)"
-											class="eye-icon"
-											src="../../assets/images/iconPack/outline-insert-comment.svg"
-										/>
-									</b-button>
-								</div>
-							</td>
+                <RowActions :items="[{ label: 'مشاهده ویزیت', icon: 'view', action: () => detail(item.visit.id) }, { label: 'تاریخچه گزارشات', icon: 'history', action: () => action(item.visit.outlet.id) }, { label: 'نمایش بازخورد', icon: 'comment', action: () => comment(item.visit.id) }]" />
+              </td>
 						</tr>
 					</template>
 				</Tableview>
@@ -194,8 +165,9 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from 'vue-pagination-2';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-	components: {
+	components: { RowActions,
 		Tableview,
 		Pagination,
 	},

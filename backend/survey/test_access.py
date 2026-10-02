@@ -99,6 +99,8 @@ class SurveyRecordAccessTests(TestCase):
         self.assertEqual(self.api.post(base, {**own, 'survey_question': self.other_question.pk},
                                        format='json').status_code, 400)
         self.assertEqual(self.api.post(base, {**own, 'number': 7}, format='json').status_code, 200)
+        # Score-type survey questions save their score like any other answer field.
+        self.assertEqual(self.api.post(base, {**own, 'score': 5}, format='json').status_code, 200)
         self.answer.refresh_from_db()
         self.assertEqual(self.answer.number, 7)
         self.fillout.is_closed = True

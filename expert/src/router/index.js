@@ -118,6 +118,9 @@ const routes = [
 
     component: () => import("@/views/Store/index.vue"),
   },
+  { path: "/visitchat/:id", name: "visitChat", component: () => import("@/views/VisitChat/index.vue") },
+  { path: "/client/visitchat/:id", name: "clientVisitChat", component: () => import("@/views/VisitChat/index.vue") },
+  { path: "/visitparts/:id", name: "visitParts", component: () => import("@/views/Wares/partRequests.vue") },
   {
     path: "/supervisordetail/:id",
     name: "superVisorDetail",
@@ -421,5 +424,8 @@ router.beforeEach(async (to, from, next) => {
     return next();
   } catch (error) { return next({ name: 'noAccess' }); }
 });
+
+// Pages with a back button need to know whether an in-app page precedes them.
+router.afterEach((to, from) => { if (from.name) window.__saanInAppNavigation = true; });
 
 export default router;

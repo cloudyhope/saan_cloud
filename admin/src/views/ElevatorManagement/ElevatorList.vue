@@ -64,25 +64,7 @@
               <td>{{ item.elevator.title }}</td>
               <td>{{ item.elevator.type }}</td>
               <td>
-                <button
-                  type="button"
-                  class="icon-action"
-                  @click="visitDetail(item.building.id)"
-                  aria-label="جزئیات ساختمان"
-                  title="جزئیات ساختمان"
-                >
-                  <ActionIcon name="view" />
-                </button>
-
-                <button
-                  type="button"
-                  class="icon-action"
-                  @click="elevatorItemDetailsFunc(item.elevator.id)"
-                  aria-label="جزئیات آسانسور"
-                  title="جزئیات آسانسور"
-                >
-                  <ActionIcon name="elevator" />
-                </button>
+                <RowActions :items="[{ label: 'جزئیات ساختمان', icon: 'building', action: () => visitDetail(item.building.id) }, { label: 'جزئیات آسانسور', icon: 'elevator', action: () => elevatorItemDetailsFunc(item.elevator.id) }]" />
               </td>
             </tr>
           </template>
@@ -95,8 +77,9 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     Tableview,
     Pagination,
   },

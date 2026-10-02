@@ -27,6 +27,9 @@
           ><span>{{ answers.length }} پاسخ ثبت‌شده</span><span>{{ photos.length }} تصویر</span
           ><span>{{ groups.length }} گروه سؤال</span>
         </div>
+        <p v-if="!survey && record.rejection_reason && ['4', '5'].includes(currentStatus)" class="detail-reason" role="note">
+          <strong>{{ currentStatus === '5' ? 'دلیل بازگشت برای اصلاح:' : 'دلیل رد:' }}</strong> {{ record.rejection_reason }}
+        </p>
         <InfoGrid :fields="metadata" />
       </section>
       <nav class="detail-section-nav" aria-label="بخش‌های گزارش">
@@ -57,9 +60,7 @@
             افزودن پاسخ
           </button>
         </div>
-        <div v-if="!groups.length" class="detail-empty">
-          هنوز پاسخی برای این گزارش ثبت نشده است.
-        </div>
+        <EmptyState v-if="!groups.length" kind="documents" size="sm" inline title="هنوز پاسخی ثبت نشده" description="پاسخ‌های کارشناس پس از ثبت اینجا دیده می‌شوند." />
         <section v-for="group in groups" :key="group.id" class="answer-group">
           <header>
             <span class="section-symbol" aria-hidden="true">≡</span>
@@ -86,7 +87,7 @@
             افزودن تصویر
           </button>
         </div>
-        <div v-if="!photos.length" class="detail-empty">تصویری برای این گزارش ثبت نشده است.</div>
+        <EmptyState v-if="!photos.length" kind="photos" size="sm" inline title="تصویری ثبت نشده" description="" />
         <div class="detail-photo-grid">
           <article v-for="photo in photos" :key="photo.id" class="detail-photo-card">
             <button
@@ -179,22 +180,30 @@
           </button>
         </div>
       </section>
+      <FieldOpsPanel v-if="!survey && !supervision" :visit-id="id" />
       <section v-if="!readOnly" class="detail-review-bar">
         <div>
           <h2>بررسی نهایی گزارش</h2>
-          <p>پس از بررسی پاسخ‌ها و مستندات، نتیجه را ثبت کنید.</p>
+          <p>{{ reviewHint }}</p>
         </div>
         <div class="detail-form-actions">
           <button
+            v-if="!survey && !supervision"
+            class="reject"
+            :disabled="busy || !reviewable"
+            @click="review = 'return'"
+          >
+            بازگشت برای اصلاح</button
+          ><button
             v-if="!survey"
             class="reject danger-action"
-            :disabled="busy || currentStatus === '4'"
+            :disabled="busy || !reviewable"
             @click="review = 'reject'"
           >
             رد ویزیت</button
           ><button
             class="accept"
-            :disabled="busy || currentStatus === (survey ? '2' : '3')"
+            :disabled="busy || (survey ? currentStatus === '2' : !reviewable)"
             @click="review = 'accept'"
           >
             {{ survey ? 'تأیید پرسشنامه' : 'تأیید ویزیت' }}
@@ -365,26 +374,34 @@
     >
     <b-modal
       :visible="!!review"
-      :title="review === 'reject' ? 'رد ویزیت' : 'تأیید گزارش'"
+      :title="{ reject: 'رد ویزیت', return: 'بازگشت برای اصلاح', accept: 'تأیید گزارش' }[review] || 'بررسی گزارش'"
       hide-footer
       centered
       @hidden="review = ''"
       header-close-label="بستن"
       ><p>
         {{
-          review === 'reject' ? 'دلیل رد این ویزیت را بنویسید.' : 'نتیجه بررسی این گزارش تأیید شود؟'
+          {
+            reject: 'دلیل رد این ویزیت را بنویسید. ویزیت ردشده بسته می‌شود و به کارشناس بازنمی‌گردد.',
+            return: 'آنچه کارشناس باید اصلاح کند را بنویسید. ویزیت به فهرست مأموریت‌های کارشناس برمی‌گردد.',
+          }[review] || 'نتیجه بررسی این گزارش تأیید شود؟'
         }}
       </p>
-      <template v-if="review === 'reject'"
-        ><label for="rejection-reason">دلیل رد</label
-        ><textarea id="rejection-reason" v-model="rejectionReason" rows="4" />
-      </template>
+      <div v-if="review === 'reject' || review === 'return'" class="review-form"
+        ><label for="rejection-reason">{{ review === 'return' ? 'موارد اصلاح' : 'دلیل رد' }}</label
+        ><textarea
+          id="rejection-reason"
+          v-model="rejectionReason"
+          rows="5"
+          :placeholder="review === 'return' ? 'مثلاً: عکس تابلو فرمان ناخواناست؛ دوباره ثبت شود.' : 'دلیل رد را بنویسید.'"
+        />
+      </div>
       <p v-if="actionError" class="detail-error" role="alert">{{ actionError }}</p>
       <div class="detail-form-actions">
         <button class="reject" @click="review = ''">انصراف</button
         ><button
           class="accept"
-          :disabled="busy || (review === 'reject' && !rejectionReason.trim())"
+          :disabled="busy || (review !== 'accept' && !rejectionReason.trim())"
           @click="saveReview"
         >
           ثبت نتیجه
@@ -413,12 +430,14 @@
 import InfoGrid from './InfoGrid.vue';
 import AnswerCard from './AnswerCard.vue';
 import DisplayDate from '@/components/DisplayDate/index.vue';
+import FieldOpsPanel from './FieldOpsPanel.vue';
 import { questionOf, answerDraft, answerPayload } from '@/utils/detailValues';
+import EmptyState from '@/components/EmptyState/index.vue';
 const rows = (data) => (Array.isArray(data) ? data : data.results || []);
 const person = (value) =>
   value ? [value.first_name, value.last_name].filter(Boolean).join(' ') || value.username : '';
 export default {
-  components: { InfoGrid, AnswerCard, DisplayDate },
+  components: { EmptyState, InfoGrid, AnswerCard, DisplayDate, FieldOpsPanel },
   props: { survey: Boolean, supervision: Boolean, readOnly: Boolean },
   data: () => ({
     profileInfo: null,
@@ -503,10 +522,26 @@ export default {
               2: 'تکمیل‌شده',
               3: 'تأیید شده',
               4: 'رد شده',
-              5: 'نیازمند تکرار',
+              5: 'برگشت برای اصلاح',
               6: 'معلق',
             })[this.currentStatus] || 'نامشخص'
       );
+    },
+    reviewable() {
+      // Only a finished report can be approved, rejected or returned.
+      return this.supervision ? !['3', '4'].includes(this.currentStatus) : this.currentStatus === '2';
+    },
+    reviewHint() {
+      if (this.survey) return 'پس از بررسی پاسخ‌ها و مستندات، نتیجه را ثبت کنید.';
+      if (this.reviewable) return 'پس از بررسی پاسخ‌ها و عکس‌ها، گزارش را تأیید، رد یا برای اصلاح به کارشناس برگردانید.';
+      return {
+        '0': 'کارشناس هنوز این مأموریت را شروع نکرده است.',
+        '1': 'کارشناس در حال انجام کار است؛ پس از ثبت پایان قابل بررسی است.',
+        '3': 'این گزارش تأیید شده است.',
+        '4': 'این گزارش رد شده است.',
+        '5': 'گزارش برای اصلاح به کارشناس برگشته است.',
+        '6': 'این مأموریت متوقف شده است.',
+      }[this.currentStatus] || 'این گزارش در وضعیت قابل بررسی نیست.';
     },
     metadata() {
       const r = this.record;
@@ -820,13 +855,15 @@ export default {
       const data = this.survey
         ? { status: '2' }
         : {
-            [this.supervision ? 'supervision_status' : 'status']: accept ? '3' : '4',
-            ...(accept ? {} : { rejection_reason: this.rejectionReason }),
+            [this.supervision ? 'supervision_status' : 'status']: accept ? '3' : this.review === 'return' ? '5' : '4',
+            ...(accept ? {} : { rejection_reason: this.rejectionReason.trim() }),
           };
       if (await this.mutate(this.survey ? 'patch' : 'put', path + this.id + '/', data)) {
+        const returned = this.review === 'return';
         this.review = '';
+        this.rejectionReason = '';
         await this.load();
-        this.notify('نتیجه بررسی ثبت شد.');
+        this.notify(returned ? 'ویزیت برای اصلاح به کارشناس برگشت.' : 'نتیجه بررسی ثبت شد.');
         if (!this.survey && accept) this.ratingOpen = true;
       }
     },

@@ -135,3 +135,28 @@ class WarehouseLocationPersonnel(models.Model):
     def delete(self, *args, **kwargs):
         self.is_active = False
         return super().save(*args, **kwargs)
+
+
+class PartRequest(models.Model):
+    """A field worker's request for a spare part during a visit; fulfilment moves stock to the requester."""
+    PENDING = 'PENDING'
+    FULFILLED = 'FULFILLED'
+    REJECTED = 'REJECTED'
+    CANCELED = 'CANCELED'
+    STATUS_CHOICES = ((PENDING, 'در انتظار'), (FULFILLED, 'تحویل شد'), (REJECTED, 'رد شد'), (CANCELED, 'لغو شد'))
+    project = models.ForeignKey(Project, on_delete=models.PROTECT, related_name='part_requests')
+    visit = models.ForeignKey(Visit, on_delete=models.PROTECT, related_name='part_requests')
+    requester = models.ForeignKey(User, on_delete=models.PROTECT, related_name='part_requests')
+    ware = models.ForeignKey(Ware, on_delete=models.PROTECT, related_name='part_requests')
+    amount = models.PositiveIntegerField()
+    note = models.CharField(max_length=500, blank=True, default='')
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default=PENDING)
+    location = models.ForeignKey(WarehouseLocation, on_delete=models.PROTECT, null=True, blank=True)
+    stock_transaction = models.ForeignKey(WarehouseTransaction, on_delete=models.PROTECT, null=True, blank=True)
+    decision_note = models.CharField(max_length=500, blank=True, default='')
+    decided_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    decided_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ('-created_at', '-id')

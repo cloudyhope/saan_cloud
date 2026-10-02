@@ -1,533 +1,242 @@
 <template>
-  <div>
-    <BaseTopBar title="سوالات" />
+  <main class="vf-page question-page" dir="rtl">
+    <VisitTopBar
+      :title="stepTitle"
+      :eyebrow="eyebrow"
+      :fallback="{ name: 'storeDetail', params: { id: visitId } }"
+      back-label="بازگشت به مأموریت"
+    >
+      <div v-if="rows.length" class="question-progress" aria-live="polite">
+        <div class="question-progress-label"><span>{{ faNumber(answeredCount) }} از {{ faNumber(rows.length) }} پرسش پاسخ داده شده</span>
+          <strong v-if="requiredLeft && editable">{{ faNumber(requiredLeft) }} الزامی مانده</strong>
+          <strong v-else-if="!requiredTotal">بدون پرسش الزامی</strong>
+          <strong v-else>الزامی‌ها کامل است</strong></div>
+        <div class="vf-progress hero-progress"><span :style="{ width: percent + '%' }" /></div>
+      </div>
+    </VisitTopBar>
 
-    <FullLoading v-if="loading" />
-    <v-alert v-if="requestError" type="error" outlined role="alert" class="mx-5 mt-4">{{ requestError }} <v-btn text color="error" @click="retryFailedAction">تلاش دوباره</v-btn></v-alert>
-    <div class="containers">
-      <v-card
-        v-for="questions in listQuestions"
-        :key="questions.question.id"
-        class="mb-4 pa-4 quest-cards"
-      >
-        <div class="d-flex flex-column">
-          <span class="quest-questions">{{ questions.question.text }}</span>
-          <span class="desc">{{ questions.question.description }}</span>
-          <span v-if="questions.submitted_answer.loading" class="answer-save-status" role="status">در حال ثبت پاسخ…</span>
-        </div>
-
-        <v-sheet
-          v-for="answerType in questions.question.answer_params"
-          :key="questions.question.id + answerType.answer_type.id"
-        >
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'YesNo'"
-            v-model="questions.submitted_answer.bool"
-            :disabled="questions.submitted_answer.loading"
-            row
-            @change="radioGroup(questions, answerType)"
-          >
-              <v-radio label="بله" :value="true"></v-radio>
-            <v-radio label="خیر" :value="false"></v-radio>
-          </v-radio-group>
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'Triple'"
-            v-model="questions.submitted_answer.bool"
-            :disabled="questions.submitted_answer.loading"
-            row
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio label="بله" :value="true"></v-radio>
-            <v-radio label="خیر" :value="false"></v-radio>
-            <v-radio label="ندارد" :value="null"></v-radio>
-          </v-radio-group>
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'Score'"
-            v-model="questions.submitted_answer.score"
-            :disabled="questions.submitted_answer.loading"
-            row
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio class="perisan" label="۱" :value="1"></v-radio>
-            <v-radio class="perisan" label="۲" :value="2"></v-radio>
-            <v-radio class="perisan" label="۳" :value="3"></v-radio>
-            <v-radio class="perisan" label="۴" :value="4"></v-radio>
-            <v-radio class="perisan" label="۵" :value="5"></v-radio>
-          </v-radio-group>
-          <div
-            class="texteara-div"
-            v-if="answerType.answer_type.name === 'Description'"
-          >
-            <textarea
-              class="textarea"
-              :id="'answer-description-' + questions.question.id"
-              :aria-label="'شرح پاسخ ' + questions.question.text"
-              rows="5"
-              v-model="questions.submitted_answer.description"
-              :disabled="questions.submitted_answer.loading"
-            ></textarea>
-            <button
-              @click="radioGroup(questions, answerType)"
-              :disabled="questions.submitted_answer.loading"
-              class="textarea-btn"
-            >
-              ثبت
-            </button>
-          </div>
-          <div v-if="answerType.answer_type.name === 'Multichoice'">
-            <div
-              v-for="answersQus in questions.question.answer_choices"
-              :key="answersQus.id"
-            >
-              <v-checkbox
-                v-model="questions.submitted_answer.multichoice"
-                :disabled="questions.submitted_answer.loading"
-                :label="answersQus.answer"
-                :value="answersQus.id"
-                @change="validatorHandler(questions, answerType)"
-              ></v-checkbox>
-            </div>
-            <div class="btn-container">
-              <div class="err-container">
-                <span class="err-message" v-if="answerType.showErr">
-                  {{ (answerType.validation || {}).choice_count_error_msg_fa || 'تعداد گزینه‌های انتخابی معتبر نیست.' }}
-                </span>
-              </div>
-              <button
-                class="submit-btn"
-                @click="radioGroup(questions, answerType)"
-                :disabled="answerType.disabled || questions.submitted_answer.loading"
-              >
-                ثبت
-              </button>
-            </div>
-          </div>
-          <div class="quest-container">
-            <div
-              class="d-flex justify-space-between mb-2"
-              v-if="answerType.answer_type.name === 'Input'"
-            >
-              <div class="input-question-container">
-                <span v-if="questions.question.short_text !== null" class="ml-2"
-                  >{{ questions.question.short_text }}:</span
-                >
-                <input
-                  v-model="questions.submitted_answer.text"
-                  :disabled="questions.submitted_answer.loading"
-                  class="type-input"
-                  type="text"
-                  @input="validatorHandler(questions, answerType)"
-                  :aria-label="questions.question.text"
-                />
-              </div>
-
-              <button
-                class="submit-btn"
-                @click="radioGroup(questions, answerType)"
-                :disabled="answerType.disabled || questions.submitted_answer.loading"
-              >
-                ثبت
-              </button>
-            </div>
-            <span class="err-message" v-if="answerType.showErr">
-              {{ (answerType.validation || {}).regex_error_msg_fa || 'مقدار واردشده معتبر نیست.' }}
-            </span>
-          </div>
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'RadioChoice'"
-            v-model="questions.submitted_answer.radio"
-            :disabled="questions.submitted_answer.loading"
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio
-              v-for="answersQus in questions.question.radio_choices"
-              :key="answersQus.id + 'radios' + questions.question.id"
-              :label="answersQus.answer"
-              :value="answersQus"
-            ></v-radio>
-          </v-radio-group>
-          <Multiselect
-            v-if="answerType.answer_type.name === 'DropDownList'"
-            :options="questions.question.dropdown_choices"
-            @select="radioGroup(questions, answerType)"
-            v-model="questions.submitted_answer.dropdown"
-            :disabled="questions.submitted_answer.loading"
-            :custom-label="customLabel"
-            placeholder="لطفا یک مورد را انتخاب نمایید"
-            selectLabel=""
-            class="mt-4"
-          >
-          </Multiselect>
-          <div
-            class="number-container"
-            v-if="answerType.answer_type.name === 'Number'"
-          >
-            <span class="number-text"
-              >{{ questions.question.short_text }}:</span
-            >
-            <div class="input-contianer">
-              <v-icon
-                :disabled="questions.submitted_answer.loading"
-                @click="increase(questions, answerType)"
-                size="small"
-                >mdi-plus</v-icon
-              >
-              <span
-                v-if="
-                  questions.submitted_answer.loading !== true &&
-                  questions.submitted_answer.number !== null
-                "
-                class="mx-2"
-                >{{ questions.submitted_answer.number }}</span
-              ><span
-                v-if="
-                  questions.submitted_answer.loading !== true &&
-                  questions.submitted_answer.number === null
-                "
-                class="mx-2"
-                >0</span
-              >
-              <v-progress-circular
-                :width="2"
-                :size="10"
-                indeterminate
-                color="#c4c4c4"
-                class="mx-3"
-                v-if="questions.submitted_answer.loading"
-              ></v-progress-circular>
-              <v-icon
-                :disabled="questions.submitted_answer.loading || questions.submitted_answer.number <= 0"
-                @click="decrease(questions, answerType)"
-                size="small"
-                >mdi-minus</v-icon
-              >
-            </div>
-          </div>
-          <!-- <input
-              type="number"
-              class="number-input"
-              v-model="questions.submitted_answer.number"
-              @change="radioGroup(questions, answerType)"
-            /> -->
-        </v-sheet>
-      </v-card>
+    <div v-if="loading && !rows.length" class="vf-body" role="status" aria-label="در حال دریافت پرسش‌ها">
+      <v-skeleton-loader v-for="n in 3" :key="n" class="vf-skeleton" type="article" />
     </div>
-    <EmptyContainer />
-    <!-- <OverlayButton
-      @click="saveBtn"
-      title="ذخیره اطلاعات"
-      :disabled="disableSaveBtn"
-    /> -->
-  </div>
+
+    <div v-else class="vf-body">
+      <div v-if="loadError" class="vf-banner vf-banner-danger" role="alert">
+        <v-icon color="#8a2f2a">mdi-alert-circle-outline</v-icon>
+        <div><strong>پرسش‌ها دریافت نشد</strong><p>{{ loadError }}</p>
+          <button type="button" class="vf-banner-action" @click="load"><v-icon size="16">mdi-refresh</v-icon>تلاش دوباره</button></div>
+      </div>
+      <div v-else-if="!editable && settingsLoaded" class="vf-banner vf-banner-info" role="note">
+        <v-icon color="#1d4f6d">mdi-lock-outline</v-icon>
+        <div><strong>فقط مشاهده</strong><p>{{ readonlyReason }}</p></div>
+      </div>
+      <div v-else-if="editable" class="vf-banner vf-banner-info compact-banner" role="note">
+        <v-icon color="#1d4f6d">mdi-content-save-check-outline</v-icon>
+        <p>هر پاسخ همان لحظه ذخیره می‌شود؛ برای متن، مبلغ و چندگزینه‌ای دکمه «ثبت» را بزنید.</p>
+      </div>
+
+      <EmptyState v-if="!loadError && !rows.length && !loading" kind="documents" size="sm" title="در این بخش پرسشی تعریف نشده" description="" />
+
+      <article v-for="(row, index) in rows" :key="row.question.id" class="vf-card question-card"
+               :class="{ 'is-answered': row.answered, 'is-required-missing': row.required && !row.answered && editable }"
+               :aria-labelledby="'q-title-' + row.question.id">
+        <header class="question-head">
+          <span class="question-index" aria-hidden="true">{{ faNumber(index + 1) }}</span>
+          <div class="question-copy">
+            <h2 :id="'q-title-' + row.question.id">{{ row.question.text }}</h2>
+            <p v-if="row.question.description" class="question-desc">{{ row.question.description }}</p>
+          </div>
+        </header>
+        <div class="question-tags">
+          <span v-if="row.required" class="vf-chip" :class="row.answered ? 'vf-tone-done' : 'vf-required'">الزامی</span>
+          <span v-else class="vf-chip vf-tone-muted">اختیاری</span>
+          <span class="vf-chip vf-tone-muted">{{ typeLabel(row) }}</span>
+          <span class="save-state" :class="'is-' + row.state" role="status">
+            <template v-if="row.state === 'saving'"><v-progress-circular indeterminate size="13" width="2" color="#1d608b" /> در حال ذخیره…</template>
+            <template v-else-if="row.state === 'saved'"><v-icon size="15" color="#1a7154">mdi-check-circle</v-icon> ذخیره شد</template>
+            <template v-else-if="row.state === 'error'"><v-icon size="15" color="#a33a35">mdi-alert-circle</v-icon> ذخیره نشد</template>
+            <template v-else-if="row.answered"><v-icon size="15" color="#1a7154">mdi-check</v-icon> پاسخ داده شده</template>
+          </span>
+        </div>
+        <AnswerInput
+          v-for="param in row.params"
+          :key="row.question.id + '-' + param.id"
+          :question="row.question"
+          :answer="row.answer"
+          :param="param"
+          :saving="row.state === 'saving'"
+          :readonly="!editable"
+          @save="save(row, $event)"
+        />
+        <p v-if="!row.params.length" class="vf-muted no-type">نوع پاسخ این پرسش تعریف نشده است.</p>
+        <div v-if="row.state === 'error'" class="row-error" role="alert">
+          <span>{{ row.error }}</span>
+          <button type="button" class="vf-btn vf-btn-danger vf-btn-small" @click="retry(row)"><v-icon size="16">mdi-refresh</v-icon>تلاش دوباره</button>
+        </div>
+      </article>
+    </div>
+
+    <footer v-if="settingsLoaded" class="vf-actionbar">
+      <p v-if="editable && requiredLeft" class="vf-actionbar-note is-danger">{{ faNumber(requiredLeft) }} پرسش الزامی این بخش هنوز پاسخ ندارد.</p>
+      <div class="vf-actionbar-row">
+        <button type="button" class="vf-btn vf-btn-ghost" @click="backToVisit"><v-icon size="19">mdi-format-list-checks</v-icon>مراحل مأموریت</button>
+        <button v-if="nextStep" type="button" class="vf-btn vf-btn-primary" @click="goNext">{{ nextStep.kind === 'photo' ? 'عکس‌ها' : 'بخش بعد' }}<v-icon color="white" size="19">mdi-arrow-left</v-icon></button>
+      </div>
+    </footer>
+  </main>
 </template>
 
 <script>
-import OverlayButton from "../../components/Button/overlayButton.vue";
-import EmptyContainer from "../../components/emptyContainer.vue";
-import BaseTopBar from "@/components/Topbar/BaseTopbar.vue";
-import FullLoading from "../../components/Loading/fullLoading.vue";
-import Multiselect from "vue-multiselect";
+import VisitTopBar from '@/components/Visit/VisitTopBar.vue';
+import AnswerInput from '@/components/Visit/AnswerInput.vue';
+import { errorMessage } from '@/utils/clientRequests';
+import { answerParams, faNumber, startVisit, withProject } from '@/utils/visitFlow';
+
+import EmptyState from '@/components/EmptyState/index.vue';
+const TYPE_LABELS = { YesNo: 'بله / خیر', Triple: 'بله / خیر / ندارد', Score: 'امتیاز ۱ تا ۵', Number: 'عدد', Price: 'مبلغ',
+  Input: 'پاسخ کوتاه', Description: 'توضیحات', RadioChoice: 'یک گزینه', DropDownList: 'انتخاب از فهرست', Multichoice: 'چند گزینه' };
+
+function hasValue(answer, fields) {
+  if (!answer || answer.id == null) return false;
+  return fields.some(field => {
+    const value = answer[field];
+    if (field === 'multichoice') return Array.isArray(value) && value.length > 0;
+    if (typeof value === 'string') return value.trim() !== '';
+    return value !== null && value !== undefined;
+  });
+}
 
 export default {
-  name: "Profile",
-  components: {
-    OverlayButton,
-    EmptyContainer,
-    BaseTopBar,
-    FullLoading,
-    Multiselect,
+  name: 'QuestionStep',
+  components: { EmptyState, VisitTopBar, AnswerInput },
+  data: () => ({ rows: [], settings: null, loading: true, settingsLoaded: false, loadError: '', sequence: 0 }),
+  computed: {
+    visitId() { return this.$route.params.id; },
+    typeId() { return Number(this.$route.params.type); },
+    visit() { return this.settings && this.settings.visit; },
+    editable() { return !!(this.settings && this.settings.editable); },
+    steps() {
+      if (!this.settings) return [];
+      return [...(this.settings.questions || []).map(item => ({ kind: 'question', item })),
+        ...(this.settings.photos || []).map(item => ({ kind: 'photo', item }))];
+    },
+    stepIndex() { return this.steps.findIndex(step => step.kind === 'question' && step.item.id === this.typeId); },
+    current() { return this.stepIndex >= 0 ? this.steps[this.stepIndex].item : null; },
+    nextStep() { return this.stepIndex >= 0 ? this.steps[this.stepIndex + 1] || null : null; },
+    stepTitle() { return (this.current && (this.current.verbose_name || this.current.name)) || 'پرسش‌ها'; },
+    eyebrow() {
+      const building = this.visit && this.visit.building;
+      const name = building ? (building.verbose_name || building.name) : '';
+      return this.stepIndex >= 0 ? `بخش ${faNumber(this.stepIndex + 1)} از ${faNumber(this.steps.length)}${name ? ' · ' + name : ''}` : name;
+    },
+    answeredCount() { return this.rows.filter(row => row.answered).length; },
+    requiredLeft() { return this.rows.filter(row => row.required && !row.answered).length; },
+    requiredTotal() { return this.rows.filter(row => row.required).length; },
+    percent() { return this.rows.length ? Math.round((this.answeredCount / this.rows.length) * 100) : 0; },
+    readonlyReason() {
+      if (this.settings && !this.settings.is_assignee) return 'شما مجری این مأموریت نیستید.';
+      const status = this.visit && this.visit.status;
+      return status === '2' ? 'گزارش ثبت شده و در انتظار بررسی است؛ تغییر پاسخ ممکن نیست.'
+        : status === '3' ? 'گزارش تأیید شده و بسته است.' : status === '4' ? 'گزارش رد شده و بسته است.'
+          : 'این مأموریت برای ثبت پاسخ باز نیست.';
+    },
   },
-  data() {
-    return {
-      listQuestions: [],
-      answerType: [],
-      switch1: [[]],
-      visitId: null,
-      loading: false,
-      requestError: '',
-      pendingRetry: null,
-      disableSaveBtn: false,
-      minesBtn: false,
-      plusBtn: false,
-      timer: null,
-      title: null,
-      max: 99,
-      latitude: null,
-      longitude: null,
-    };
-  },
-
-  mounted() {
-    this.getQuestion();
-  },
-  created() {
-    // const success = (position) => {
-    //   this.latitude = position.coords.latitude;
-    //   this.longitude = position.coords.longitude;
-    // };
-
-    // const error = (err) => {
-    //   err;
-    // };
-    // navigator.geolocation.getCurrentPosition(success, error);
-  },
+  watch: { '$route.params': { handler: 'load' } },
+  created() { this.load(); },
+  beforeDestroy() { this.sequence++; },
   methods: {
-    regexValidatorHandler(questions, answerType) {
-      const pattern = answerType.validation && answerType.validation.regex;
-      if (!pattern) return false;
-      try { return !new RegExp(pattern).test(questions.submitted_answer.text || ''); }
-      catch (_) { return false; }
+    faNumber,
+    typeLabel(row) {
+      return row.params.map(param => TYPE_LABELS[param.answer_type.name] || param.answer_type.name).join('، ') || '—';
     },
-    periodValidatorHandler(questions, answerType) {
-      const rules = answerType.validation || {};
-      const count = (questions.submitted_answer.multichoice || []).length;
-      return [rules.min_choice_count != null && count < rules.min_choice_count,
-        rules.max_choice_count != null && count > rules.max_choice_count];
+    toRow(item) {
+      const mandatoryGroup = !!(item.question.question_type && item.question.question_type.is_mandatory);
+      const row = { question: item.question, params: answerParams(item.question), answer: item.submitted_answer || {}, state: '', error: '', pending: null,
+        required: mandatoryGroup || !!item.question.is_mandatory, answered: false };
+      row.answered = hasValue(row.answer, this.fields(row));
+      return row;
     },
-    validatorHandler(i, x) {
-      let regval = false;
-      let periodval = [false, false];
-      if (x.answer_type.name === "Input") {
-        regval = this.regexValidatorHandler(i, x);
-      }
-      if (x.answer_type.name === "Multichoice") {
-        periodval = this.periodValidatorHandler(i, x);
-      }
-      x.disabled = !(!regval && !periodval[0] && !periodval[1]);
-      x.showErr = x.disabled;
-    },
-    customLabel({ id, answer }) {
-      return `${answer}`;
-    },
-    increase(questions, answerType) {
-      questions.submitted_answer.number = questions.submitted_answer.number + 1;
-      this.radioGroup(questions, answerType);
-    },
-    decrease(questions, answerType) {
-      questions.submitted_answer.number = questions.submitted_answer.number - 1;
-      this.radioGroup(questions, answerType);
-    },
-    async getQuestion() {
-      this.visitId = this.$route.params.id;
-      const type = this.$route.params.type;
-      this.loading = true;
-      this.requestError = '';
-      this.pendingRetry = null;
+    fields(row) { return row.params.map(param => param.answer_type.field); },
+    async load() {
+      const sequence = ++this.sequence;
+      this.loading = true; this.loadError = '';
       try {
-        const res = await this.$ApiServiceLayer.get(
-          this.$PATH.RELATIVE_PATH.GET.GET_QUESTIONS + this.visitId +
-            '/?question_type=' + encodeURIComponent(type) + '&p=' +
-            this.$STORE.state.userConfig.selectedProject,
-          this.$PATH.SERVICE_NAME.AUTH
-        );
-        if (res.status !== 200 || !Array.isArray(res.data)) {
-          this.requestError = 'دریافت پرسش‌ها ممکن نشد. دوباره تلاش کنید.';
+        const [settings, questions] = await Promise.all([
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.VISIT_PAGE_SETTING + this.visitId + '/'), this.$PATH.SERVICE_NAME.AUTH),
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.GET_QUESTIONS + this.visitId + '/', { question_type: this.typeId }), this.$PATH.SERVICE_NAME.AUTH),
+        ]);
+        if (sequence !== this.sequence) return;
+        if (settings.status === 200) { this.settings = settings.data; this.settingsLoaded = true; }
+        if (questions.status !== 200 || !Array.isArray(questions.data)) {
+          this.loadError = questions.status === 404 ? 'این بخش پیدا نشد یا به شما تخصیص داده نشده است.' : errorMessage(questions);
           return;
         }
-        this.listQuestions = res.data;
-        for (const row of this.listQuestions) {
-          row.submitted_answer.loading = false;
-          for (const param of row.question.answer_params) {
-            param.disabled = true;
-            param.showErr = false;
-          }
-          if (row.submitted_answer.id == null) row.submitted_answer.bool = undefined;
-        }
+        this.rows = questions.data.map(this.toRow);
       } catch (_) {
-        this.requestError = 'دریافت پرسش‌ها ممکن نشد. اتصال اینترنت را بررسی کنید.';
+        if (sequence === this.sequence) this.loadError = 'اتصال برقرار نشد. اینترنت را بررسی و دوباره تلاش کنید.';
       } finally {
-        this.loading = false;
+        if (sequence === this.sequence) this.loading = false;
       }
     },
-    retryFailedAction() {
-      if (this.pendingRetry) this.radioGroup(this.pendingRetry.questions, this.pendingRetry.answerType);
-      else this.getQuestion();
-    },
-    async radioGroup(questions, answerType) {
-      if (questions.submitted_answer.loading) return;
-      this.requestError = '';
-      this.pendingRetry = null;
-      questions.submitted_answer.loading = true;
-      const data = {
-        visit: this.visitId,
-        question: questions.question.id,
-        longitude: this.longitude,
-        latitude: this.latitude,
-      };
-      if (
-        typeof questions.submitted_answer[answerType.answer_type.field] ===
-          "object" &&
-        typeof questions.submitted_answer[answerType.answer_type.field] !==
-          null &&
-        answerType.answer_type.name !== "Multichoice" &&
-        answerType.answer_type.name !== "Triple"
-      ) {
-        data[answerType.answer_type.field] =
-          questions.submitted_answer[answerType.answer_type.field].id;
-      } else {
-        data[answerType.answer_type.field] =
-          questions.submitted_answer[answerType.answer_type.field];
-      }
-
+    async save(row, payload) {
+      if (row.state === 'saving' || !this.editable) return;
+      row.state = 'saving'; row.error = ''; row.pending = payload;
       try {
-        const res = await this.$ApiServiceLayer.post(
-          this.$PATH.RELATIVE_PATH.POST.POST_QUESTIONS + '?p=' + this.$STORE.state.userConfig.selectedProject,
-          this.$PATH.SERVICE_NAME.AUTH, data
-        );
-        if (res.status !== 200) {
-          this.requestError = 'پاسخ ثبت نشد. مقدار را بررسی کنید و دوباره بفرستید.';
-          this.pendingRetry = { questions, answerType };
+        // An open visit that is not yet «in progress» is started before its first answer.
+        if (this.visit && ['0', '5', '6'].includes(this.visit.status)) {
+          const started = await startVisit(this.$ApiServiceLayer, this.$PATH, this.visitId);
+          if (!started.ok) { row.state = 'error'; row.error = started.message; return; }
+          this.settings.visit = { ...this.visit, status: '1' };
+        }
+        const response = await this.$ApiServiceLayer.post(withProject(this.$PATH.RELATIVE_PATH.POST.POST_QUESTIONS),
+          this.$PATH.SERVICE_NAME.AUTH, { visit: Number(this.visitId), question: row.question.id, ...payload });
+        if (response.status !== 200) {
+          row.state = 'error';
+          row.error = response.status === 404 ? 'این مأموریت برای ثبت پاسخ باز نیست.' : errorMessage(response);
           return;
         }
-        if (res.data && res.data.id) questions.submitted_answer.id = res.data.id;
+        row.answer = response.data;
+        row.answered = hasValue(row.answer, this.fields(row));
+        row.state = 'saved'; row.pending = null;
+        setTimeout(() => { if (row.state === 'saved') row.state = ''; }, 2200);
       } catch (_) {
-        this.requestError = 'پاسخ ثبت نشد. اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.';
-        this.pendingRetry = { questions, answerType };
-      } finally {
-        questions.submitted_answer.loading = false;
+        row.state = 'error'; row.error = 'اتصال برقرار نشد؛ پاسخ ذخیره نشد.';
       }
     },
-    saveBtn() {
-      this.$router.push({ name: "storeDetail" });
+    retry(row) { if (row.pending) { const payload = row.pending; row.state = ''; this.save(row, payload); } },
+    backToVisit() { this.$router.push({ name: 'storeDetail', params: { id: this.visitId } }); },
+    goNext() {
+      const step = this.nextStep;
+      if (!step) return this.backToVisit();
+      if (step.kind === 'question') return this.$router.push({ name: 'shelfQuestion', params: { type: step.item.id, id: this.visitId } });
+      const min = Math.max(step.item.min || 0, step.item.is_mandatory ? 1 : 0);
+      return this.$router.push({ name: 'pickImage', params: { type: step.item.id, id: this.visitId, minImg: min } });
     },
   },
 };
 </script>
-<style>
-.containers {
-  margin: 12px 24px;
-}
-.v-input--radio-group.v-input--radio-group--row .v-radio {
-  margin: 0 !important;
-}
-.v-icon.v-icon {
-  font-size: 16px;
-}
-.perisan {
-}
-.texteara-div {
-  display: inline-block;
-  position: relative;
-  border: 1px solid #cdcdcd;
-  width: 100%;
-}
-.type-input {
-  height: 30px;
-  border-radius: 4px;
-  text-indent: 5px;
-  width: 75%;
-  border: 1px solid #d9d9d9;
-}
-.textarea-btn {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background: #357AE1;
-  color: #fff;
-  padding: 5px;
-  border-radius: 8px;
-  width: 60px;
-}
-.input-question-container {
-  width: 100%;
-}
 
-.textarea {
-  display: block;
-  width: 100%;
-}
-.submit-btn {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #357AE1;
-  border-radius: 8px;
-  color: #fff;
-  width: 60px;
-  height: 30px;
-  margin-bottom: 10px;
-}
-.btn-container {
-  width: 100%;
-  display: flex;
-  margin-bottom: 10px;
-  align-items: center;
-}
-.quest-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-}
-.err-container {
-  width: 90%;
-}
-.err-message {
-  color: #ff2f2f;
-}
-.number-input {
-  border: 1px solid #c4c4c4;
-  border-radius: 2px;
-  width: 50px;
-}
-.number-container {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  margin-top: 10px;
-}
-.number-text {
-  width: 30%;
-  font-size: 14px;
-}
-.quest-cards {
-  box-shadow: 0px 4px 4px rgba(214, 214, 214, 0.6) !important;
-}
-.quest-questions {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-.desc {
-  font-size: 10px;
-  color: #c4c4c4;
-}
-
-.input-contianer {
-  border: 1px solid #c4c4c4;
-  display: flex;
-  align-items: center;
-  justify-content: space-evenly;
-  border-radius: 2px;
-  padding: 2px;
-  width: 80px;
-  height: 30px;
-  border-radius: 4px;
-}
-.submit-btn[disabled] {
-  background: #cec4c4;
-}
-.answer-save-status { color: #236180; font-size: 12px; margin-top: 5px; }
+<style scoped>
+.question-progress { margin-top: 14px; }
+.question-progress-label { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: #d4eaf5; margin-bottom: 6px; }
+.question-progress-label strong { color: #fff; white-space: nowrap; }
+.hero-progress { background: #ffffff2e; }
+.compact-banner { align-items: center; padding: 11px 13px; }
+.compact-banner p { margin: 0; font-size: 12.5px; }
+.question-card { transition: border-color .2s ease; }
+.question-card.is-answered { border-color: #cfe7d9; }
+.question-card.is-required-missing { border-color: #f0cdc8; }
+.question-head { display: flex; gap: 11px; align-items: flex-start; }
+.question-index { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--vf-brand-soft);
+  color: var(--vf-brand); font-weight: 800; font-size: 13px; }
+.is-answered .question-index { background: var(--vf-ok-soft); color: var(--vf-ok); }
+.question-copy { flex: 1; min-width: 0; }
+.question-copy h2 { font-size: 14.5px; font-weight: 800; line-height: 1.75; margin: 2px 0 0; color: var(--vf-ink); }
+.question-desc { margin: 4px 0 0; color: var(--vf-muted); font-size: 12.5px; line-height: 1.8; white-space: pre-line; }
+.question-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.save-state { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: auto; font-size: 11.5px; font-weight: 700; color: var(--vf-muted); }
+.save-state.is-saved { color: var(--vf-ok); }
+.save-state.is-error { color: var(--vf-danger); }
+.row-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px;
+  border-radius: 12px; background: var(--vf-danger-soft); color: var(--vf-danger); font-size: 12.5px; font-weight: 700; }
+.no-type { margin: 10px 0 0; }
 </style>
-<style>
-.v-input__slot {
-  background: #fff !important;
-}
-.v-application--is-rtl .v-input--selection-controls__input {
-  margin-left: 0 !important;
-}
-.multiselect {
-  text-align: right !important;
-}
-.multiselect__content {
-  padding-left: 0 !important;
-}
-.multiselect__option--highlight {
-  background: #357AE1 !important;
-}
-.multiselect__select {
-  display: none !important;
-}
-.multiselect__tags {
-  padding: 8px 20px 0 8px !important;
-}
-</style>
-<style src="vue-multiselect/dist/vue-multiselect.min.css"></style>

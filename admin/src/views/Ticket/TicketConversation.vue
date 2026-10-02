@@ -54,9 +54,7 @@
             بستن تیکت
           </button>
         </div>
-        <div v-if="!messages.length" class="detail-empty">
-          هنوز پیامی برای این تیکت ثبت نشده است.
-        </div>
+        <EmptyState v-if="!messages.length" kind="chat" size="sm" inline title="هنوز پیامی ثبت نشده" description="" />
         <div class="ticket-thread">
           <article
             v-for="message in messages"
@@ -104,8 +102,9 @@
 <script>
 import InfoGrid from '@/components/RecordDetails/InfoGrid.vue';
 import DisplayDate from '@/components/DisplayDate/index.vue';
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
-  components: { InfoGrid, DisplayDate },
+  components: { EmptyState, InfoGrid, DisplayDate },
   data: () => ({
     loading: true,
     busy: false,

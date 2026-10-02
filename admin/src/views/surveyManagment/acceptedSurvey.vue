@@ -137,15 +137,7 @@
               <td class="persian-number">{{ item.phone_number }}</td>
 
               <td>
-                <button
-                  type="button"
-                  class="icon-action"
-                  @click="surveyDetail(item.id)"
-                  aria-label="مشاهده جزئیات"
-                  title="مشاهده جزئیات"
-                >
-                  <ActionIcon name="view" />
-                </button>
+                <RowActions :items="[{ label: 'مشاهده جزئیات', icon: 'view', action: () => surveyDetail(item.id) }]" />
               </td>
             </tr>
           </template>
@@ -160,8 +152,9 @@ import FilterPanel from '@/components/FilterPanel/index.vue';
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     DisplayDate,
     FilterPanel,
     Tableview,

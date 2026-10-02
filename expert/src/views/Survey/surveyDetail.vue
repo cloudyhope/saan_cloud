@@ -1,1061 +1,296 @@
 <template>
-  <div>
-    <FullLoading v-if="loading" />
-    <BaseTopBar :title="surveyDetailQuestions.survey_fill_out.survey.verbose_name" />
-    
-    <div class="survey-container">
-      <!-- Survey Description Card -->
-      <v-card class="survey-description-card">
-        <div class="sms-text">
-          {{ surveyDetailQuestions.survey_fill_out.survey.sms_text }}
-        </div>
-      </v-card>
+  <main class="vf-page survey-detail" dir="rtl">
+    <VisitTopBar
+      :title="surveyName"
+      :eyebrow="visitId ? `پرسشنامه مأموریت ${faId(visitId)}` : 'پرسشنامه'"
+      :fallback="visitId ? { name: 'storeDetail', params: { id: visitId } } : { name: 'tasks' }"
+    >
+      <div v-if="fillOut" class="survey-hero-meta">
+        <span class="vf-chip" :class="closed ? 'vf-tone-done' : 'vf-tone-progress'">
+          <v-icon size="15">{{ closed ? 'mdi-send-check-outline' : 'mdi-pencil-outline' }}</v-icon>{{ closed ? 'ارسال شده' : 'در حال تکمیل' }}
+        </span>
+        <span v-if="survey.has_phone_verification" class="vf-chip hero-chip">
+          <v-icon size="15" color="#e8f5fb">{{ fillOut.phone_verified ? 'mdi-shield-check-outline' : 'mdi-shield-alert-outline' }}</v-icon>
+          {{ fillOut.phone_verified ? 'شماره تأیید شده' : 'نیازمند تأیید شماره' }}
+        </span>
+      </div>
+      <div v-if="steps.length" class="survey-hero-progress">
+        <div class="survey-hero-label"><span>بخش‌های تکمیل‌شده</span><strong>{{ faNumber(doneCount) }} از {{ faNumber(steps.length) }}</strong></div>
+        <div class="vf-progress hero-progress"><span :style="{ width: percent + '%' }" /></div>
+      </div>
+    </VisitTopBar>
 
-      <!-- Verification Status Alerts -->
-      <v-alert
-        v-if="
-          surveyDetailQuestions.survey_fill_out.phone_verified === false &&
-          surveyDetailQuestions.survey_fill_out.survey.has_phone_verification === true
-        "
-        class="verification-alert warning-alert"
-        border="left"
-        color="#F8F0D6"
-      >
-        <div class="d-flex align-center">
-          <v-img
-            max-width="20"
-            src="@/assets/images/Icons/circle-slice-3.svg"
-            class="alert-icon"
-          />
-          <span class="warning-message">احراز هویت انجام نشده است.</span>
-        </div>
-      </v-alert>
-      
-      <v-alert
-        v-if="
-          surveyDetailQuestions.survey_fill_out.phone_verified === true &&
-          surveyDetailQuestions.survey_fill_out.survey.has_phone_verification === true
-        "
-        class="verification-alert success-alert"
-        border="left"
-        color="#B3EADB"
-      >
-        <div class="d-flex align-center">
-          <v-img
-            max-width="20"
-            src="@/assets/images/Icons/check-circle-outline.svg"
-            class="alert-icon"
-          />
-          <span class="success-message">احراز هویت با موفقیت انجام شد.</span>
-        </div>
-      </v-alert>
-
-      <!-- Province/City Selection Card -->
-      <v-card v-if="isMandatory" class="location-card">
-        <div class="card-header">
-          <h3 class="card-title">انتخاب موقعیت</h3>
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label">استان:</label>
-          <select
-            @change="getCityOnChange"
-            v-model="pickProvince"
-            class="form-select"
-          >
-            <option
-              v-for="province in provinceLists"
-              :value="province.id"
-              :key="'province' + province.id"
-            >
-              {{ province.name }}
-            </option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label class="form-label">شهر:</label>
-          <select v-model="pickCity" class="form-select" @change="onChangeCity">
-            <option
-              v-for="city in cityList"
-              :value="city.id"
-              :key="'city' + city.id"
-            >
-              {{ city.name }}
-            </option>
-          </select>
-        </div>
-        
-        <div
-          v-if="
-            surveyDetailQuestions.survey_fill_out.survey.has_phone_verification === null
-          "
-          class="form-group"
-        >
-          <label class="form-label">شماره همراه پرسش شونده:</label>
-          <div class="phone-input-group">
-            <input
-              maxlength="11"
-              type="number"
-              oninput="javascript: if (this.value.length > this.maxLength) this.value = this.value.slice(0, this.maxLength);"
-              v-model="surveyDetailQuestions.survey_fill_out.phone_number"
-              class="phone-input"
-              placeholder="شماره همراه را وارد کنید"
-            />
-            <button
-              @click="onChangeCity"
-              class="send-button"
-              :disabled="checkPhoneNumber"
-            >
-              <v-img
-                max-width="18"
-                src="@/assets/images/Icons/quill_send.svg"
-              />
-            </button>
-          </div>
-        </div>
-      </v-card>
-
-      <!-- Survey Items -->
-      <div class="survey-items">
-        <!-- Questions -->
-        <div
-          v-for="survey in surveyDetailQuestions.questions"
-          :key="'survey' + survey.id"
-          @click="questionPage(survey.id)"
-          class="survey-item"
-        >
-          <div class="item-content">
-            <div class="item-icon">
-              <v-img max-width="24" src="@/assets/images/Icons/doc.svg" />
-            </div>
-            <span class="item-title">{{ survey.verbose_name }}</span>
-          </div>
-          <div class="item-arrow">
-            <v-img
-              v-if="survey.status === false"
-              max-width="20"
-              src="@/assets/images/Icons/chevron-left-rounded.svg"
-            />
-            <v-img
-              max-width="20"
-              v-if="survey.status === true"
-              src="@/assets/images/Icons/material-symbols_keyboard-arrow-up-rounded.svg"
-            />
-          </div>
-        </div>
-
-        <!-- Photos -->
-        <div
-          v-for="photos in surveyDetailQuestions.photos"
-          :key="'photos' + photos.id"
-          class="survey-item"
-          @click="imageCondition(photos)"
-        >
-          <div class="item-content">
-            <div class="item-icon">
-              <v-img max-width="24" src="@/assets/images/Icons/camera.svg" />
-            </div>
-            <span class="item-title">{{ photos.verbose_name }}</span>
-          </div>
-          <div class="item-arrow">
-            <v-img
-              v-if="photos.status === false"
-              max-width="20"
-              src="@/assets/images/Icons/chevron-left-rounded.svg"
-            />
-            <v-img
-              max-width="20"
-              v-if="photos.status === true"
-              src="@/assets/images/Icons/material-symbols_keyboard-arrow-up-rounded.svg"
-            />
-          </div>
-        </div>
-
-        <!-- Add-ins -->
-        <div
-          v-for="add in surveyDetailQuestions.add_ins"
-          :key="'add' + add.id"
-          class="survey-item"
-          @click="veifyProfileHandler()"
-        >
-          <div class="item-content">
-            <div class="item-icon">
-              <v-img max-width="24" src="@/assets/images/Icons/camera.svg" />
-            </div>
-            <span class="item-title">{{ add.verbose_name }}</span>
-          </div>
-          <div class="item-arrow">
-            <v-img
-              max-width="20"
-              src="@/assets/images/Icons/material-symbols_keyboard-arrow-up-rounded.svg"
-            />
-          </div>
-        </div>
+    <div v-if="loading && !fillOut" class="vf-body" role="status" aria-label="در حال دریافت پرسشنامه">
+      <v-skeleton-loader class="vf-skeleton" type="article" /><v-skeleton-loader class="vf-skeleton" type="list-item-two-line, list-item-two-line" />
+    </div>
+    <div v-else-if="error && !fillOut" class="vf-body">
+      <div class="vf-banner vf-banner-danger" role="alert">
+        <v-icon color="#8a2f2a">mdi-alert-circle-outline</v-icon>
+        <div><strong>پرسشنامه دریافت نشد</strong><p>{{ error }}</p>
+          <button type="button" class="vf-banner-action" @click="load"><v-icon size="16">mdi-refresh</v-icon>تلاش دوباره</button></div>
       </div>
     </div>
 
-    <!-- Bottom Spacing -->
-    <div class="bottom-spacing"></div>
+    <div v-else-if="fillOut" class="vf-body">
+      <div v-if="closed" class="vf-banner vf-banner-ok" role="note">
+        <v-icon color="#1b6247">mdi-send-check-outline</v-icon>
+        <div><strong>پرسشنامه ارسال شده است</strong><p>پاسخ‌ها فقط قابل مشاهده‌اند.</p></div>
+      </div>
+      <div v-else-if="needsVerification" class="vf-banner vf-banner-warn" role="note">
+        <v-icon color="#7a4d0f">mdi-shield-alert-outline</v-icon>
+        <div><strong>شماره پرسش‌شونده هنوز تأیید نشده است</strong>
+          <p>پیش از ارسال، کد تأیید را به شماره مدیر ساختمان بفرستید و وارد کنید.</p>
+          <button type="button" class="vf-banner-action" @click="verifyOpen = true"><v-icon size="16">mdi-cellphone-message</v-icon>تأیید شماره</button></div>
+      </div>
+      <section v-if="survey.sms_text" class="vf-card" aria-labelledby="intro-heading">
+        <div class="vf-card-title"><h2 id="intro-heading">درباره این پرسشنامه</h2></div>
+        <p class="survey-intro">{{ survey.sms_text }}</p>
+      </section>
 
-    <!-- Action Buttons -->
-    <div
-      class="action-buttons"
-      v-if="
-        surveyDetailQuestions.survey_fill_out.phone_verified === false &&
-        surveyDetailQuestions.survey_fill_out.survey.has_phone_verification === true
-      "
-    >
-      <button type="button" :disabled="true" class="action-button disabled-button">
-        <span>ارسال</span>
-      </button>
-      <button @click="verifySheet = true" type="button" class="action-button verify-button">
-        <span>احراز هویت</span>
-      </button>
+      <section v-if="survey.is_mandatory_city || survey.has_phone_verification === null" class="vf-card" aria-labelledby="who-heading">
+        <div class="vf-card-title"><h2 id="who-heading">مشخصات پرسش‌شونده</h2><small v-if="savingProfile">در حال ذخیره…</small></div>
+        <div v-if="survey.is_mandatory_city" class="form-grid">
+          <label class="field-label">استان
+            <span class="select-wrap"><select v-model="provinceId" :disabled="closed || savingProfile" @change="pickProvince">
+              <option value="" disabled>انتخاب استان</option>
+              <option v-for="province in provinces" :key="province.id" :value="province.id">{{ province.name }}</option>
+            </select><v-icon class="select-icon" size="20">mdi-chevron-down</v-icon></span>
+          </label>
+          <label class="field-label">شهر
+            <span class="select-wrap"><select v-model="cityId" :disabled="closed || !provinceId || savingProfile" @change="saveProfile">
+              <option value="" disabled>انتخاب شهر</option>
+              <option v-for="city in cities" :key="city.id" :value="city.id">{{ city.name }}</option>
+            </select><v-icon class="select-icon" size="20">mdi-chevron-down</v-icon></span>
+          </label>
+        </div>
+        <label v-if="survey.has_phone_verification === null" class="field-label">شماره همراه پرسش‌شونده
+          <span class="inline-field"><input v-model="phone" inputmode="tel" maxlength="11" dir="ltr" placeholder="09xxxxxxxxx" :disabled="closed || savingProfile" />
+            <button type="button" class="vf-btn vf-btn-primary vf-btn-small" :disabled="closed || savingProfile || !validPhone(phone)" @click="saveProfile">ذخیره</button></span>
+        </label>
+        <p v-if="profileError" class="field-error" role="alert">{{ profileError }}</p>
+      </section>
+
+      <div class="vf-section-label"><h2>بخش‌ها</h2><span v-if="steps.length">{{ faNumber(doneCount) }} از {{ faNumber(steps.length) }} تکمیل</span></div>
+      <div v-if="!steps.length" class="vf-empty"><v-icon color="#7c9aa9" size="28">mdi-clipboard-text-off-outline</v-icon>برای این پرسشنامه بخشی تعریف نشده است.</div>
+      <div v-else>
+        <button v-for="step in steps" :key="step.kind + step.id" type="button" class="vf-step" :class="{ 'is-done': step.done }" @click="open(step)">
+          <span class="vf-step-icon"><v-icon :color="step.done ? '#1a7154' : '#1d608b'" size="22">{{ step.done ? 'mdi-check-circle-outline' : step.kind === 'photo' ? 'mdi-camera-outline' : 'mdi-clipboard-text-outline' }}</v-icon></span>
+          <span class="vf-step-copy">
+            <strong>{{ step.title }}</strong>
+            <span class="vf-step-meta"><span>{{ step.kind === 'photo' ? 'عکس' : 'پرسش‌ها' }}</span><span class="vf-chip" :class="step.done ? 'vf-tone-done' : 'vf-tone-muted'">{{ step.done ? 'تکمیل' : step.progress || 'شروع نشده' }}</span></span>
+          </span>
+          <v-icon size="20" color="#7c9aa9">mdi-chevron-left</v-icon>
+        </button>
+        <button v-for="add in addIns" :key="'add' + add.id" type="button" class="vf-step" @click="verifyProfile">
+          <span class="vf-step-icon"><v-icon color="#1d608b" size="22">mdi-card-account-details-outline</v-icon></span>
+          <span class="vf-step-copy"><strong>{{ add.verbose_name || add.name }}</strong><span class="vf-step-meta">احراز هویت</span></span>
+          <v-icon size="20" color="#7c9aa9">mdi-chevron-left</v-icon>
+        </button>
+      </div>
+      <p v-if="actionError" class="vf-banner vf-banner-danger action-error" role="alert"><v-icon color="#8a2f2a">mdi-alert-circle-outline</v-icon><span>{{ actionError }}</span></p>
     </div>
 
-    <!-- Verification Bottom Sheet -->
-    <v-bottom-sheet
-      :retain-focus="false"
-      max-width="576px"
-      v-model="verifySheet"
-    >
-      <v-sheet
-        :retain-focus="false"
-        class="verification-sheet"
-        height="320px"
-      >
-        <div class="sheet-header">
-          <h3 class="sheet-title">احراز هویت</h3>
-        </div>
+    <footer v-if="fillOut && !closed" class="vf-actionbar">
+      <p class="vf-actionbar-note" :class="{ 'is-danger': !ready }">{{ readyNote }}</p>
+      <div class="vf-actionbar-row">
+        <button v-if="needsVerification" type="button" class="vf-btn vf-btn-ghost" @click="verifyOpen = true"><v-icon size="19">mdi-cellphone-message</v-icon>تأیید شماره</button>
+        <button type="button" class="vf-btn vf-btn-success" :disabled="!ready || sending" @click="send">
+          <v-progress-circular v-if="sending" indeterminate size="20" width="2" color="white" /><template v-else><v-icon color="white" size="19">mdi-send-outline</v-icon>ارسال پرسشنامه</template>
+        </button>
+      </div>
+    </footer>
 
-        <div class="sheet-content">
-          <div class="verification-step">
-            <p class="step-description">شماره همراه شخص را برای دریافت کد وارد کنید.</p>
-            <div class="phone-input-group">
-              <input 
-                v-model="phoneNumber" 
-                class="verification-input" 
-                type="number" 
-                placeholder="شماره همراه"
-              />
-              <button
-                @click="sendOtpCode"
-                :disabled="sendOtpNumber"
-                class="send-button"
-              >
-                <v-img
-                  v-if="sendOtpIcon === true && sendCodeTrue === false"
-                  max-width="18"
-                  src="@/assets/images/Icons/quill_send.svg"
-                />
-                <span
-                  v-if="sendOtpIcon === true && sendCodeTrue === true"
-                  class="timer"
-                >{{ timerCount }}</span>
-                <v-img
-                  v-if="sendOtpIcon === false && sendCodeTrue === false"
-                  max-width="18"
-                  src="@/assets/images/Icons/quill_send_white.svg"
-                />
-              </button>
-            </div>
-          </div>
-
-          <div class="verification-step">
-            <p class="step-description">کد ارسال‌شده را وارد کنید.</p>
-            <div class="otp-container">
-              <input
-                inputmode="decimal"
-                type="number"
-                class="otp-input"
-                v-model="codeOtp"
-                maxlength="5"
-                @keyup.enter="submitOTP"
-                @input="checkVerify"
-                :disabled="otpInputs"
-                placeholder="کد تایید"
-              />
-              <div class="otp-display">
-                <div class="otp-digit" :class="{ active: fakeInput[4] }">
-                  {{ fakeInput[4] }}
-                </div>
-                <div class="otp-digit" :class="{ active: fakeInput[3] }">
-                  {{ fakeInput[3] }}
-                </div>
-                <div class="otp-digit" :class="{ active: fakeInput[2] }">
-                  {{ fakeInput[2] }}
-                </div>
-                <div class="otp-digit" :class="{ active: fakeInput[1] }">
-                  {{ fakeInput[1] }}
-                </div>
-                <div class="otp-digit" :class="{ active: fakeInput[0] }">
-                  {{ fakeInput[0] }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+    <v-bottom-sheet v-model="verifyOpen" max-width="576px">
+      <v-sheet class="vf-sheet" role="dialog" aria-labelledby="verify-title">
+        <div class="vf-sheet-handle" aria-hidden="true" />
+        <div class="vf-sheet-head"><h2 id="verify-title">تأیید شماره پرسش‌شونده</h2>
+          <button type="button" class="vf-icon-btn" aria-label="بستن" @click="verifyOpen = false"><v-icon size="22">mdi-close</v-icon></button></div>
+        <label class="field-label">شماره همراه
+          <span class="inline-field"><input v-model="verifyPhone" inputmode="tel" maxlength="11" dir="ltr" placeholder="09xxxxxxxxx" :disabled="codeSending" />
+            <button type="button" class="vf-btn vf-btn-primary vf-btn-small" :disabled="codeSending || countdown > 0 || !validPhone(verifyPhone)" @click="sendCode">
+              {{ countdown > 0 ? faNumber(countdown) + ' ثانیه' : verification ? 'ارسال دوباره' : 'ارسال کد' }}</button></span>
+        </label>
+        <label v-if="verification" class="field-label">کد تأیید
+          <input v-model="code" class="code-input" inputmode="numeric" maxlength="5" dir="ltr" placeholder="•••••" :disabled="verifying" @input="code.length === 5 && verifyCode()" />
+        </label>
+        <p class="vf-muted sms-note">ارسال کد به سرویس پیامک نیاز دارد؛ اگر کد نرسید، چند لحظه بعد دوباره تلاش کنید.</p>
+        <p v-if="verifyError" class="field-error" role="alert">{{ verifyError }}</p>
+        <button v-if="verification" type="button" class="vf-btn vf-btn-primary vf-btn-block" :disabled="code.length !== 5 || verifying" @click="verifyCode">تأیید کد</button>
       </v-sheet>
     </v-bottom-sheet>
-
-    <!-- Submit Button -->
-    <OverlayButton
-      v-if="
-        surveyDetailQuestions.survey_fill_out.phone_verified === true ||
-        surveyDetailQuestions.survey_fill_out.survey.has_phone_verification === false
-      "
-      @click="finishSurvey"
-      :disabled="disableFinishSurvey"
-      title="ارسال"
-    />
-
-    <!-- Error Snackbar -->
-    <v-snackbar v-model="errorSnackBar" :timeout="4000" color="red">
-      شماره همراه وارد شده تکراری است.
-    </v-snackbar>
-  </div>
+    <v-snackbar v-model="toast" :timeout="2400" top color="#15364f">{{ toastText }}</v-snackbar>
+  </main>
 </template>
+
 <script>
-import OverlayButton from "../../components/Button/overlayButton.vue";
-import EmptyContainer from "../../components/emptyContainer.vue";
-import FullLoading from "../../components/Loading/fullLoading.vue";
-import BaseTopBar from "@/components/Topbar/BaseTopbar.vue";
+import VisitTopBar from '@/components/Visit/VisitTopBar.vue';
+import { errorMessage } from '@/utils/clientRequests';
+import { faId, faNumber, withProject } from '@/utils/visitFlow';
+
+const latin = value => String(value || '').replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+
 export default {
-  name: "Profile",
-  components: {
-    OverlayButton,
-    EmptyContainer,
-    FullLoading,
-    BaseTopBar
-  },
-  data() {
-    return {
-      sheet: false,
-      surveyDetailQuestions: [],
-      visitDetail: {},
-      data: {},
-      captureImg: null,
-      latitude: null,
-      longitude: null,
-      snackbar: false,
-      timeout: 2000,
-      loading: false,
-      x: false,
-      y: false,
-      provinceLists: [],
-      cityList: [],
-      pickProvince: "",
-      pickCity: "",
-      selectedkCity: "",
-      surveyId: null,
-      verifySheet: false,
-      codeOtp: "",
-      phoneNumber: "",
-      veificationData: {},
-      otpInputs: true,
-      sendOtpIcon: true,
-      timerCount: 0,
-      sendCodeTrue: false,
-      disableSendOtp: false,
-      errorSnackBar: false,
-      visitId: null,
-      isMandatory: false,
-    };
-  },
-  created() {
-    this.getProvince();
-    const success = (position) => {
-      this.latitude = position.coords.latitude;
-      this.longitude = position.coords.longitude;
-      // Do something with the position
-    };
-
-    const error = (err) => {
-      err;
-    };
-    // This will open permission popup
-    navigator.geolocation.getCurrentPosition(success, error);
-  },
-  async mounted() {
-    await this.getSurveyDetail();
-    this.submitedExistsProvince();
-  },
+  name: 'SurveyOverview',
+  components: { VisitTopBar },
+  data: () => ({
+    page: null, loading: true, error: '', actionError: '', provinces: [], cities: [], provinceId: '', cityId: '', phone: '',
+    savingProfile: false, profileError: '', sending: false, verifyOpen: false, verifyPhone: '', verification: null,
+    code: '', codeSending: false, verifying: false, verifyError: '', countdown: 0, timer: null, toast: false, toastText: '',
+  }),
   computed: {
-    checkQuestion() {
-      for (let x of this.surveyDetailQuestions.questions) {
-        if (x.status === false) {
-          return true;
-        }
-      }
-      return false;
+    fillId() { return this.$route.params.fill_id || this.$route.params.id; },
+    visitId() { return this.$route.params.visit_id || (this.fillOut && this.fillOut.visit) || null; },
+    fillOut() { return this.page && this.page.survey_fill_out; },
+    survey() { return (this.fillOut && this.fillOut.survey) || {}; },
+    surveyName() { return this.survey.verbose_name || this.survey.name || 'پرسشنامه'; },
+    closed() { return !!(this.fillOut && this.fillOut.is_closed); },
+    needsVerification() { return !!(this.survey.has_phone_verification && this.fillOut && !this.fillOut.phone_verified); },
+    steps() {
+      if (!this.page) return [];
+      return [...(this.page.questions || []).map(item => ({ kind: 'question', id: item.id, title: item.verbose_name || item.name, done: !!item.status, progress: this.progressLabel(item.progress) })),
+        ...(this.page.photos || []).map(item => ({ kind: 'photo', id: item.id, title: item.verbose_name || item.name, done: !!item.status, progress: this.progressLabel(item.progress) }))];
     },
-    checkPhotos() {
-      for (let i of this.surveyDetailQuestions.photos) {
-        if (i.status === false) {
-          return true;
-        }
-      }
-      return false;
-    },
-    fakeInput() {
-      return this.codeOtp;
-    },
-    disableFinishSurvey() {
-      if (
-        this.checkPhotos === true ||
-        this.checkQuestion === true
-      ) {
-        return true;
-      } else {
-        return false;
-      }
-    },
-    sendOtpNumber() {
-      if (this.disableSendOtp === true) {
-        return true;
-      }
-      if (this.phoneNumber.length < 11) {
-        return true;
-      } else {
-        return false;
-      }
-    },
-    checkPhoneNumber() {
-      if (this.surveyDetailQuestions.survey_fill_out.phone_number === null) {
-        return true;
-      }
-      if (this.surveyDetailQuestions.survey_fill_out.phone_number.length < 11) {
-        return true;
-      } else {
-        return false;
-      }
+    addIns() { return (this.page && this.page.add_ins) || []; },
+    doneCount() { return this.steps.filter(step => step.done).length; },
+    percent() { return this.steps.length ? Math.round((this.doneCount / this.steps.length) * 100) : 0; },
+    locationMissing() { return !!(this.survey.is_mandatory_city && !(this.fillOut && this.fillOut.city)); },
+    ready() { return this.steps.every(step => step.done) && !this.needsVerification && !this.locationMissing; },
+    readyNote() {
+      if (this.needsVerification) return 'برای ارسال، ابتدا شماره پرسش‌شونده را تأیید کنید.';
+      if (this.locationMissing) return 'استان و شهر پرسش‌شونده را انتخاب کنید.';
+      const left = this.steps.length - this.doneCount;
+      return left ? `${faNumber(left)} بخش هنوز کامل نشده است.` : 'همه بخش‌ها کامل است؛ پرسشنامه را ارسال کنید.';
     },
   },
+  watch: { countdown(value) { clearTimeout(this.timer); if (value > 0) this.timer = setTimeout(() => { this.countdown -= 1; }, 1000); } },
+  created() { this.load(); },
+  beforeDestroy() { clearTimeout(this.timer); },
   methods: {
-    async getSurveyDetail() {
-      const url = window.location.href;
-      this.surveyId = url.split("/").slice(-1)[0];
-      if (url.includes("invisit")) {
-        this.visitId = url.split("/").slice(-2)[0];
-        "sd", this.visitId;
-      }
-      const res = await this.$ApiServiceLayer.get(
-        this.$PATH.RELATIVE_PATH.MULTI.SURVEY_QUESTION_TYPE +
-          this.surveyId +
-          "/" +
-          "?p=" +
-          this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH
-      );
-      if (res.status === 200) {
-        this.isMandatory = res.data.survey_fill_out.survey.is_mandatory_city;
-        this.surveyDetailQuestions = res.data;
-        if (res.data.survey_fill_out.province !== null) {
-          this.pickProvince = res.data.survey_fill_out.province.id;
+    faId, faNumber,
+    notify(text) { this.toastText = text; this.toast = true; },
+    progressLabel(value) {
+      const number = parseFloat(value);
+      return Number.isFinite(number) && number > 0 ? `${faNumber(Math.round(number))}٪` : '';
+    },
+    validPhone(value) { return /^09\d{9}$/.test(latin(value)); },
+    async load() {
+      this.loading = true; this.error = '';
+      try {
+        const response = await this.$ApiServiceLayer.get(
+          withProject(this.$PATH.RELATIVE_PATH.MULTI.SURVEY_QUESTION_TYPE + this.fillId + '/'), this.$PATH.SERVICE_NAME.AUTH);
+        if (response.status !== 200 || !response.data || !response.data.survey_fill_out) {
+          this.error = response.status === 404 ? 'این پرسشنامه پیدا نشد یا در دسترس شما نیست.' : errorMessage(response);
+          return;
         }
-        if (res.data.survey_fill_out.city !== null) {
-          this.pickCity = res.data.survey_fill_out.city.id;
+        this.page = response.data;
+        const fillOut = response.data.survey_fill_out;
+        this.phone = fillOut.phone_number || '';
+        this.verifyPhone = this.verifyPhone || fillOut.phone_number || '';
+        if (fillOut.survey && fillOut.survey.is_mandatory_city) {
+          this.provinceId = fillOut.province ? (fillOut.province.id || fillOut.province) : '';
+          this.cityId = fillOut.city ? (fillOut.city.id || fillOut.city) : '';
+          if (!this.provinces.length) this.loadProvinces();
+          if (this.provinceId) this.loadCities();
         }
-      }
+      } catch (_) {
+        this.error = 'اتصال برقرار نشد. دوباره تلاش کنید.';
+      } finally { this.loading = false; }
     },
-    submitedExistsProvince() {
-      if (this.pickCity !== null) {
-        this.getCity();
-      }
+    async loadProvinces() {
+      const response = await this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.PROVINCE_LIST), this.$PATH.SERVICE_NAME.AUTH);
+      if (response.status === 200) this.provinces = Array.isArray(response.data) ? response.data : response.data.results || [];
     },
-    async getProvince() {
-      const res = await this.$ApiServiceLayer.get(
-        this.$PATH.RELATIVE_PATH.GET.PROVINCE_LIST +
-          "?p=" +
-          this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH
-      );
-      if (res.status === 200) {
-        this.provinceLists = res.data;
-      }
+    async loadCities() {
+      const response = await this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.CITY_LIST, { province: this.provinceId }), this.$PATH.SERVICE_NAME.AUTH);
+      if (response.status === 200) this.cities = Array.isArray(response.data) ? response.data : response.data.results || [];
     },
-    async finishSurvey() {
-      const res = await this.$ApiServiceLayer.patch(
-        this.$PATH.RELATIVE_PATH.MULTI.SURVEY_FILL_OUT_EDIT +
-          this.surveyId +
-          "/" + '?p=' + this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH,
-        { is_closed: true }
-      );
-      if (res.status === 200) {
-        this.provinceLists = res.data;
-        const url = window.location.href;
-        if (url.includes("invisit")) {
-          this.$router.push({
-            name: "storeDetail",
-            params: { id: this.visitId },
-          });
-        } else {
-          this.$router.push({ name: "survey" });
+    pickProvince() { this.cityId = ''; this.cities = []; this.loadCities(); },
+    async saveProfile() {
+      if (this.closed) return;
+      this.savingProfile = true; this.profileError = '';
+      const payload = {};
+      if (this.survey.is_mandatory_city && this.cityId) { payload.city = this.cityId; payload.province = this.provinceId; }
+      if (this.survey.has_phone_verification === null && this.phone) payload.phone_number = latin(this.phone);
+      try {
+        const response = await this.$ApiServiceLayer.patch(
+          withProject(this.$PATH.RELATIVE_PATH.MULTI.SURVEY_FILL_OUT_EDIT + this.fillId + '/'), this.$PATH.SERVICE_NAME.AUTH, payload);
+        if (response.status !== 200) { this.profileError = response.status === 400 ? 'این شماره قبلاً برای همین پرسشنامه ثبت شده است.' : errorMessage(response); return; }
+        this.notify('مشخصات ذخیره شد.');
+        await this.load();
+      } catch (_) { this.profileError = 'ذخیره انجام نشد. دوباره تلاش کنید.'; }
+      finally { this.savingProfile = false; }
+    },
+    open(step) {
+      if (step.kind === 'photo') this.$router.push({ name: 'surveyImage', params: { surveyId: this.fillId, id: step.id }, query: this.visitId ? { visit: this.visitId } : {} });
+      else this.$router.push({ name: 'surveyQuestions', params: { surveyId: this.fillId, id: step.id }, query: this.visitId ? { visit: this.visitId } : {} });
+    },
+    verifyProfile() { this.$router.push({ name: 'verifyProfile', params: { id: this.fillId } }); },
+    async sendCode() {
+      this.codeSending = true; this.verifyError = '';
+      try {
+        const response = await this.$ApiServiceLayer.post(withProject(this.$PATH.RELATIVE_PATH.POST.SURVEY_VERIFICATION_SEND_CODE),
+          this.$PATH.SERVICE_NAME.AUTH, { phone_number: latin(this.verifyPhone), survey_fill_out: Number(this.fillId) });
+        if (response.status !== 201) { this.verifyError = response.status === 400 ? 'این شماره قبلاً برای همین پرسشنامه ثبت شده است.' : errorMessage(response); return; }
+        this.verification = response.data;
+        this.countdown = 60;
+        this.code = '';
+      } catch (_) { this.verifyError = 'ارسال کد ممکن نشد. دوباره تلاش کنید.'; }
+      finally { this.codeSending = false; }
+    },
+    async verifyCode() {
+      if (this.verifying || !this.verification) return;
+      this.verifying = true; this.verifyError = '';
+      try {
+        const response = await this.$ApiServiceLayer.post(withProject(this.$PATH.RELATIVE_PATH.POST.SURVEY_OTP_VALIDATE_VERIFICATION),
+          this.$PATH.SERVICE_NAME.AUTH, { code: latin(this.code), verification_token: this.verification.verification_token,
+            id: this.verification.id, phone_number: this.verification.phone_number });
+        if (response.status !== 200) {
+          this.verifyError = response.status === 419 ? 'کد منقضی شده است؛ کد تازه بگیرید.' : (response.data && response.data.detail) || 'کد واردشده درست نیست.';
+          this.code = '';
+          return;
         }
-      }
+        this.verifyOpen = false;
+        this.notify('شماره تأیید شد.');
+        await this.load();
+      } catch (_) { this.verifyError = 'تأیید ممکن نشد. دوباره تلاش کنید.'; }
+      finally { this.verifying = false; }
     },
-    async getCity() {
-      const res = await this.$ApiServiceLayer.get(
-        this.$PATH.RELATIVE_PATH.GET.CITY_LIST +
-          "?province=" +
-          this.selectedkCity +
-          "&p=" +
-          this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH
-      );
-      if (res.status === 200) {
-        this.cityList = res.data;
-      }
-    },
-    async onChangeCity() {
-      this.loading = true;
-      const res = await this.$ApiServiceLayer.patch(
-        this.$PATH.RELATIVE_PATH.MULTI.SURVEY_FILL_OUT_EDIT +
-          this.surveyId +
-          "/" + '?p=' + this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH,
-        {
-          city: this.pickCity,
-          province: this.pickProvince,
-          phone_number: this.surveyDetailQuestions.survey_fill_out.phone_number,
-        }
-      );
-      if (res.status === 200) {
-        this.loading = false;
-      } else {
-        this.loading = false;
-        this.errorSnackBar = true;
-      }
-    },
-    getCityOnChange() {
-      this.selectedkCity = this.pickProvince;
-      this.getCity();
-      this.pickCity = "";
-    },
-    checkVerify() {
-      if (this.codeOtp.length == 5) {
-        this.submitOTP();
-      }
-    },
-    async sendOtpCode() {
-      this.disableSendOtp = true;
-      this.sendCodeTrue = true;
-      this.timerCount = 30;
-      const res = await this.$ApiServiceLayer.post(
-        this.$PATH.RELATIVE_PATH.POST.SURVEY_VERIFICATION_SEND_CODE,
-        this.$PATH.SERVICE_NAME.AUTH,
-        { phone_number: this.phoneNumber, survey_fill_out: this.surveyId }
-      );
-      if (res.status === 201) {
-        this.veificationData = res.data;
-        this.otpInputs = false;
-      } else {
-        this.verifySheet = false;
-        this.errorSnackBar = true;
-        this.timerCount = 0;
-        this.sendCodeTrue = false;
-      }
-    },
-    async submitOTP() {
-      this.loading = true;
-      const res = await this.$ApiServiceLayer.post(
-        this.$PATH.RELATIVE_PATH.POST.SURVEY_OTP_VALIDATE_VERIFICATION,
-        this.$PATH.SERVICE_NAME.AUTH,
-        {
-          // code: this.veificationData.code,
-          code: this.codeOtp,
-          verification_token: this.veificationData.verification_token,
-          id: this.veificationData.id,
-          phone_number: this.veificationData.phone_number,
-        }
-      );
-      if (res.status === 200) {
-        this.loading = false;
-        this.getSurveyDetail();
-      } else {
-        this.warning = res.status === 419
-          ? "کد منقضی شده است؛ کد تازه دریافت کنید"
-          : (res.data && res.data.detail) || "کد ورود معتبر نیست";
-        this.codeOtp = "";
-        this.loading = false;
-      }
-    },
-    veifyProfileHandler() {
-      this.$router.push({
-        name: "verifyProfile",
-        params: { id: this.surveyId },
-      });
-    },
-    // async func(event, photos) {
-    //   this.loading = true;
-    //   const url = window.location.href;
-    //   const lastParam = url.split("/").slice(-1)[0];
-    //   let formData = new FormData();
-    //   formData.append("link", event.target.files[0]);
-    //   formData.append("latitude", this.latitude);
-    //   formData.append("longitude", this.longitude);
-    //   formData.append("visit", lastParam);
-    //   formData.append("type", photos.id);
-    //   const res = await this.$ApiServiceLayer.post(
-    //     this.$PATH.RELATIVE_PATH.POST.UPLOAD_IMAGE,
-    //     this.$PATH.SERVICE_NAME.AUTH,
-    //     formData,
-    //     {
-    //       "Content-Type": "multipart/form-data",
-    //     }
-    //   );
-    //   if (res.status === 200) {
-    //     this.loading = false
-    //     this.snackbar = true;
-    //      this.changeStatus();
-    //     this.getStoreDetail();
-    //   }
-    // },
-    imageCondition(e) {
-      this.$router.push({
-        name: "surveyImage",
-        params: { surveyId: this.surveyId, id: e.id },
-      });
-    },
-    questionPage(id) {
-      this.$router.push({
-        name: "surveyQuestions",
-        params: { surveyId: this.surveyId, id: id },
-      });
-      // if (questionType === "SA") {
-      //   ("SA");
-
-      //   this.$router.push({
-      //     name: "saleQuestion",
-      //     params: { type: questionType, id: id },
-      //   });
-      // } else if (questionType === "GE") {
-      //   ("GE");
-
-      //   this.$router.push({
-      //     name: "generalQuestion",
-      //     params: { type: questionType, id: id },
-      //   });
-      // } else if (questionType === "SH") {
-      //   ("SH");
-
-      //   this.$router.push({
-      //     name: "shelfQuestion",
-      //     params: { type: questionType, id: id },
-      //   });
-      // }
-    },
-  },
-  watch: {
-    timerCount: {
-      handler(value) {
-        if (value > 0) {
-          setTimeout(() => {
-            this.timerCount--;
-          }, 1000);
-        }
-        if (value <= 0) {
-          this.disableSendOtp = false;
-          this.sendCodeTrue = false;
-        }
-      },
-      immediate: true, // This ensures the watcher is triggered upon creation
+    async send() {
+      if (!this.ready || this.sending) return;
+      this.sending = true; this.actionError = '';
+      try {
+        const response = await this.$ApiServiceLayer.patch(
+          withProject(this.$PATH.RELATIVE_PATH.MULTI.SURVEY_FILL_OUT_EDIT + this.fillId + '/'), this.$PATH.SERVICE_NAME.AUTH, { is_closed: true });
+        if (response.status !== 200) { this.actionError = errorMessage(response); return; }
+        this.notify('پرسشنامه ارسال شد.');
+        if (this.visitId) await this.$router.push({ name: 'storeDetail', params: { id: this.visitId } });
+        else await this.load();
+      } catch (_) { this.actionError = 'ارسال انجام نشد. دوباره تلاش کنید.'; }
+      finally { this.sending = false; }
     },
   },
 };
 </script>
-<style lang="scss" scoped>
-// Main Container
-.survey-container {
-  margin: 0 24px;
-  padding-top: 24px;
-}
 
-// Survey Description Card
-.survey-description-card {
-  margin-bottom: 24px;
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1) !important;
-  border-radius: 12px !important;
-  overflow: hidden;
-}
-
-.sms-text {
-  font-size: 14px;
-  color: #404041;
-  font-weight: 400;
-  line-height: 1.5;
-  background: linear-gradient(135deg, #cddff5 0%, #e8f2ff 100%);
-  padding: 16px;
-  margin: 0;
-}
-
-// Verification Alerts
-.verification-alert {
-  margin-bottom: 16px;
-  border-radius: 12px !important;
-  border: none !important;
-  
-  &.warning-alert {
-    background: linear-gradient(135deg, #F8F0D6 0%, #FFF8E1 100%) !important;
-  }
-  
-  &.success-alert {
-    background: linear-gradient(135deg, #B3EADB 0%, #E8F5E8 100%) !important;
-  }
-}
-
-.alert-icon {
-  margin-left: 12px;
-}
-
-.warning-message {
-  color: #c2aa65;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.success-message {
-  color: #46a175;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-// Location Card
-.location-card {
-  margin-bottom: 24px;
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1) !important;
-  border-radius: 12px !important;
-  overflow: hidden;
-}
-
-.card-header {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  padding: 16px 20px;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.card-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #404041;
-  margin: 0;
-}
-
-.form-group {
-  padding: 20px;
-  border-bottom: 1px solid #f1f3f4;
-  
-  &:last-child {
-    border-bottom: none;
-  }
-}
-
-.form-label {
-  display: block;
-  font-size: 14px;
-  font-weight: 500;
-  color: #404041;
-  margin-bottom: 8px;
-}
-
-.form-select {
-  width: 100%;
-  padding: 12px 16px;
-  border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 14px;
-  color: #404041;
-  transition: all 0.2s ease;
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1);
-  
-  &:focus {
-    outline: none;
-    border-color: #357AE1;
-    box-shadow: 0px 0px 0px 3px rgba(53, 122, 225, 0.1);
-  }
-}
-
-// Phone Input Group
-.phone-input-group {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-}
-
-.phone-input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 14px;
-  color: #404041;
-  transition: all 0.2s ease;
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1);
-  
-  &::placeholder {
-    color: #9ca3af;
-  }
-  
-  &:focus {
-    outline: none;
-    border-color: #357AE1;
-    box-shadow: 0px 0px 0px 3px rgba(53, 122, 225, 0.1);
-  }
-}
-
-.send-button {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #357AE1;
-  border: none;
-  border-radius: 8px;
-  min-width: 48px;
-  height: 48px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover:not(:disabled) {
-    background: #2d6bb8;
-    transform: translateY(-1px);
-  }
-  
-  &:disabled {
-    background: #f1f1f1;
-    cursor: not-allowed;
-  }
-}
-
-// Survey Items
-.survey-items {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.survey-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #fff;
-  padding: 16px 20px;
-  border-radius: 12px;
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1) !important;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0px 4px 12px 0px rgba(16, 24, 40, 0.15) !important;
-  }
-}
-
-.item-content {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-
-.item-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #eaf1fb 0%, #f4f9ff 100%);
-  border-radius: 8px;
-  padding: 12px;
-  min-width: 48px;
-  height: 48px;
-}
-
-.item-title {
-  font-size: 14px;
-  color: #404041;
-  font-weight: 500;
-}
-
-.item-arrow {
-  display: flex;
-  align-items: center;
-}
-
-// Bottom Spacing
-.bottom-spacing {
-  height: 120px;
-}
-
-// Action Buttons
-.action-buttons {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 100%;
-  max-width: 576px;
-  background: #fff;
-  padding: 20px 24px;
-  display: flex;
-  gap: 16px;
-  box-shadow: 0px -4px 12px 0px rgba(16, 24, 40, 0.1);
-  border-radius: 16px 16px 0 0;
-}
-
-.action-button {
-  flex: 1;
-  padding: 16px 24px;
-  border-radius: 12px;
-  font-size: 16px;
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  
-  &.disabled-button {
-    background: #f1f1f1;
-    color: #9ca3af;
-    cursor: not-allowed;
-  }
-  
-  &.verify-button {
-    background: #357AE1;
-    color: #fff;
-    
-    &:hover {
-      background: #2d6bb8;
-      transform: translateY(-1px);
-    }
-  }
-}
-
-// Verification Sheet
-.verification-sheet {
-  border-radius: 16px 16px 0 0 !important;
-  padding: 0;
-}
-
-.sheet-header {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  padding: 20px 24px;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.sheet-title {
-  font-size: 18px;
-  font-weight: 600;
-  color: #404041;
-  margin: 0;
-}
-
-.sheet-content {
-  padding: 24px;
-}
-
-.verification-step {
-  margin-bottom: 24px;
-  
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.step-description {
-  font-size: 14px;
-  color: #6b7280;
-  margin-bottom: 16px;
-  line-height: 1.5;
-}
-
-.verification-input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  background: #fff;
-  font-size: 14px;
-  color: #404041;
-  transition: all 0.2s ease;
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1);
-  
-  &::placeholder {
-    color: #9ca3af;
-  }
-  
-  &:focus {
-    outline: none;
-    border-color: #357AE1;
-    box-shadow: 0px 0px 0px 3px rgba(53, 122, 225, 0.1);
-  }
-}
-
-.timer {
-  font-size: 16px;
-  font-weight: 600;
-  color: #357AE1;
-}
-
-// OTP Container
-.otp-container {
-  position: relative;
-  width: 100%;
-}
-
-.otp-input {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  z-index: 10;
-  cursor: pointer;
-}
-
-.otp-display {
-  display: flex;
-  gap: 12px;
-  justify-content: center;
-}
-
-.otp-digit {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 56px;
-  height: 56px;
-  border: 2px solid #e1e5e9;
-  border-radius: 12px;
-  background: #fff;
-  font-size: 20px;
-  font-weight: 600;
-  color: #404041;
-  transition: all 0.2s ease;
-  
-  &.active {
-    border-color: #357AE1;
-    background: #f8f9ff;
-    color: #357AE1;
-    transform: scale(1.05);
-  }
-}
-
-// Responsive Design
-@media (max-width: 480px) {
-  .survey-container {
-    margin: 0 16px;
-  }
-  
-  .action-buttons {
-    padding: 16px 20px;
-  }
-  
-  .otp-digit {
-    width: 48px;
-    height: 48px;
-    font-size: 18px;
-  }
-}
+<style scoped>
+.survey-hero-meta { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 14px; }
+.hero-chip { background: #ffffff1f; color: #e8f5fb; border: 1px solid #ffffff3a; }
+.survey-hero-progress { margin-top: 14px; }
+.survey-hero-label { display: flex; justify-content: space-between; font-size: 12px; color: #d4eaf5; margin-bottom: 6px; }
+.survey-hero-label strong { color: #fff; }
+.hero-progress { background: #ffffff2e; }
+.survey-intro { margin: 0; white-space: pre-line; color: #2a4b60; font-size: 13.5px; line-height: 1.9; }
+.form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.field-label { display: grid; gap: 6px; font-size: 12.5px; font-weight: 700; color: var(--vf-muted); margin-bottom: 10px; }
+.select-wrap { position: relative; display: block; }
+.select-wrap select, .inline-field input, .code-input { width: 100%; height: 48px; padding: 0 13px; border-radius: 13px; border: 1.5px solid #d6e3eb;
+  background: #fff; font-size: 14px; color: var(--vf-ink); }
+.select-wrap select { padding-left: 38px; appearance: none; -webkit-appearance: none; }
+.select-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+.inline-field { display: flex; gap: 8px; }
+.inline-field input { flex: 1; min-width: 0; text-align: left; }
+.code-input { text-align: center; font-size: 22px; font-weight: 800; letter-spacing: 10px; }
+.field-error { color: var(--vf-danger); font-size: 12px; font-weight: 700; margin: 4px 0 0; }
+.sms-note { margin: 0 0 12px; line-height: 1.7; }
+.action-error { margin: 0; align-items: center; }
 </style>
-

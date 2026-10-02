@@ -63,6 +63,12 @@ class VisitType(models.Model):
     has_supervision = models.BooleanField(blank=True, default=False)
     is_active = models.BooleanField(blank=True, default=True)
     default_wage = models.BigIntegerField(blank=True, default=0)
+    # The field worker must enter the code shown in the client app to finish this kind of service.
+    requires_client_code = models.BooleanField(blank=True, default=False)
+    # Show the service fee (total_wage) in the client's report; off by default because it is also the worker's pay.
+    show_wage_in_report = models.BooleanField(blank=True, default=False)
+    # 1 (routine) to 5 (specialist work); compared with the worker's grade when assigning.
+    complexity = models.PositiveSmallIntegerField(blank=True, default=1, validators=[MinValueValidator(1), MaxValueValidator(5)])
     project = models.ForeignKey(Project, on_delete=models.CASCADE, blank=True, null=True, default=None)
     surveys = models.ManyToManyField(Survey)
     add_ins = models.ManyToManyField(AddIn)
@@ -196,6 +202,12 @@ class Visit(models.Model):
     due_date = models.DateField(blank=True, null=True, default=None)
     total_wage = models.BigIntegerField(blank=True, null=True, default=None)
     supervision_status = models.CharField(max_length=1, choices=STATUS_CHOICES, blank=True, default='0')
+    # Six-digit code shown to the building's client users; created on first need (visit.field_ops).
+    completion_code = models.CharField(max_length=6, blank=True, default='')
+    completion_code_failures = models.PositiveSmallIntegerField(default=0)
+    completion_code_locked_until = models.DateTimeField(null=True, blank=True)
+    maintenance_plan = models.ForeignKey('MaintenancePlan', on_delete=models.SET_NULL, null=True, blank=True,
+                                         related_name='visits')
 
 
     # class Meta:
@@ -269,6 +281,8 @@ class Client(models.Model):
     legacy_visits = models.ManyToManyField(Visit, blank=True, related_name='legacy_client_links')
     visit_types = models.ManyToManyField(VisitType, blank=True, related_name='clients')
     type = models.CharField(max_length=10, choices=TYPES, default="Customer")
+    # Denormalised priority score (0-100) maintained by visit.priority; null when no factor applies.
+    priority_score = models.FloatField(null=True, blank=True, db_index=True)
 
 
 class ServiceRequestSubmission(models.Model):
@@ -433,6 +447,7 @@ class Elevator(models.Model):
     firefighter_mode = models.CharField(max_length=25, blank=True, null=True, default=None, choices=FIREFIGHTER_MODE_CHOICES)
     standard_type = models.CharField(max_length=25, blank=True, null=True, default=None, choices=STANDARD_TYPE_CHOICES)
     landing_call_comm_type = models.CharField(max_length=25, blank=True, null=True, default=None, choices=LANDING_CALL_COMM_TYPE_CHOICES)
+    priority_score = models.FloatField(null=True, blank=True, db_index=True)
 
 
 # for key in d.keys():
@@ -584,6 +599,7 @@ class Building(models.Model):
     city = models.ForeignKey(City, on_delete=models.CASCADE, blank=True, null=True, default=None)
     is_visiting = models.BooleanField(blank=True, default=False)
     code = models.CharField(max_length=25, unique=True)
+    priority_score = models.FloatField(null=True, blank=True, db_index=True)
     
 class BuildingElevator(models.Model):
     building = models.ForeignKey(Building, on_delete=models.CASCADE)
@@ -863,3 +879,173 @@ class VisitRule(models.Model):
         # TODO: Prevent intersection between rules
 
         return super().save(*args, **kwargs)
+
+
+class PriorityFactor(models.Model):
+    """A weighted criterion of service priority, e.g. client tier or building sensitivity."""
+    CLIENT = 'client'
+    BUILDING = 'building'
+    ELEVATOR = 'elevator'
+    TARGETS = ((CLIENT, 'مشتری'), (BUILDING, 'ساختمان'), (ELEVATOR, 'آسانسور'))
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='priority_factors')
+    name = models.CharField(max_length=80)
+    description = models.CharField(max_length=255, blank=True, default='')
+    target = models.CharField(max_length=10, choices=TARGETS)
+    weight = models.DecimalField(max_digits=6, decimal_places=2, default=1,
+                                 validators=[MinValueValidator(0), MaxValueValidator(100)])
+    # Used for entities without a chosen option, so a missing value neither boosts nor sinks them.
+    default_value = models.PositiveSmallIntegerField(default=50, validators=[MaxValueValidator(100)])
+    is_active = models.BooleanField(default=True)
+    order = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('order', 'id')
+
+
+class PriorityOption(models.Model):
+    factor = models.ForeignKey(PriorityFactor, on_delete=models.CASCADE, related_name='options')
+    label = models.CharField(max_length=80)
+    value = models.PositiveSmallIntegerField(validators=[MaxValueValidator(100)])
+    order = models.IntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ('order', 'id')
+
+
+class PriorityAssignment(models.Model):
+    """The option a client, building or elevator has for one factor."""
+    factor = models.ForeignKey(PriorityFactor, on_delete=models.CASCADE, related_name='assignments')
+    option = models.ForeignKey(PriorityOption, on_delete=models.CASCADE, related_name='assignments')
+    client = models.ForeignKey(Client, on_delete=models.CASCADE, null=True, blank=True, related_name='priority_assignments')
+    building = models.ForeignKey(Building, on_delete=models.CASCADE, null=True, blank=True, related_name='priority_assignments')
+    elevator = models.ForeignKey(Elevator, on_delete=models.CASCADE, null=True, blank=True, related_name='priority_assignments')
+    updated_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.CheckConstraint(name='priority_assignment_one_target', check=(
+                models.Q(client__isnull=False, building__isnull=True, elevator__isnull=True)
+                | models.Q(client__isnull=True, building__isnull=False, elevator__isnull=True)
+                | models.Q(client__isnull=True, building__isnull=True, elevator__isnull=False))),
+            models.UniqueConstraint(fields=['factor', 'client'], condition=models.Q(client__isnull=False),
+                                    name='priority_unique_client_factor'),
+            models.UniqueConstraint(fields=['factor', 'building'], condition=models.Q(building__isnull=False),
+                                    name='priority_unique_building_factor'),
+            models.UniqueConstraint(fields=['factor', 'elevator'], condition=models.Q(elevator__isnull=False),
+                                    name='priority_unique_elevator_factor'),
+        ]
+
+
+class VisitAssignmentEvent(models.Model):
+    """A field worker accepting or handing back an assigned visit; declines carry a reason for planners."""
+    ACCEPTED = 'accepted'
+    DECLINED = 'declined'
+    ACTIONS = ((ACCEPTED, 'پذیرش'), (DECLINED, 'بازگرداندن'))
+    visit = models.ForeignKey(Visit, on_delete=models.CASCADE, related_name='assignment_events')
+    user = models.ForeignKey(User, on_delete=models.PROTECT, related_name='visit_assignment_events')
+    action = models.CharField(max_length=10, choices=ACTIONS)
+    reason = models.CharField(max_length=500, blank=True, default='')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ('-created_at', '-id')
+
+
+class MaintenancePlan(models.Model):
+    """Recurring service of one elevator; visit.maintenance opens each visit ahead of its due date."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='maintenance_plans')
+    elevator = models.ForeignKey(Elevator, on_delete=models.CASCADE, related_name='maintenance_plans')
+    visit_type = models.ForeignKey(VisitType, on_delete=models.PROTECT, related_name='maintenance_plans')
+    expert = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='maintenance_plans')
+    interval_days = models.PositiveSmallIntegerField(validators=[MinValueValidator(7), MaxValueValidator(730)])
+    lead_days = models.PositiveSmallIntegerField(default=7, validators=[MaxValueValidator(60)])
+    next_due = models.DateField()
+    note = models.CharField(max_length=500, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ('next_due', 'id')
+
+
+class Skill(models.Model):
+    """A specialty such as control boards, hydraulic lifts or automatic doors."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='skills')
+    name = models.CharField(max_length=60)
+    description = models.CharField(max_length=255, blank=True, default='')
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ('name', 'id')
+        constraints = [models.UniqueConstraint(fields=['project', 'name'], name='skill_unique_name_per_project')]
+
+
+class ServiceRequirement(models.Model):
+    """What a service type asks of the worker: a skill at a minimum level (1-5)."""
+    visit_type = models.ForeignKey(VisitType, on_delete=models.CASCADE, related_name='requirements')
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='requirements')
+    min_level = models.PositiveSmallIntegerField(default=1, validators=[MinValueValidator(1), MaxValueValidator(5)])
+    # Required: workers below the level are not eligible. Preferred: lowers the fit only.
+    is_required = models.BooleanField(default=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['visit_type', 'skill'], name='requirement_unique_skill_per_type')]
+
+
+class ExpertProfile(models.Model):
+    """Planning data of a field worker in one project; absent profile means the defaults."""
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='expert_profiles')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='expert_profiles')
+    # 1 (trainee) to 5 (senior); must reach a service type's complexity.
+    grade = models.PositiveSmallIntegerField(default=3, validators=[MinValueValidator(1), MaxValueValidator(5)])
+    # Python weekdays (Mon=0 … Sun=6); the default is Saturday to Wednesday.
+    work_days = models.JSONField(default=list)
+    daily_capacity = models.PositiveSmallIntegerField(default=4, validators=[MinValueValidator(1), MaxValueValidator(30)])
+    max_open = models.PositiveSmallIntegerField(default=10, validators=[MinValueValidator(1), MaxValueValidator(100)])
+    is_assignable = models.BooleanField(default=True)
+    note = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['project', 'user'], name='expert_profile_unique')]
+
+
+class ExpertSkill(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='expert_skills')
+    skill = models.ForeignKey(Skill, on_delete=models.CASCADE, related_name='holders')
+    level = models.PositiveSmallIntegerField(default=3, validators=[MinValueValidator(1), MaxValueValidator(5)])
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['user', 'skill'], name='expert_skill_unique')]
+
+
+class ExpertTimeOff(models.Model):
+    project = models.ForeignKey(Project, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='time_off')
+    start_date = models.DateField()
+    end_date = models.DateField()
+    reason = models.CharField(max_length=255, blank=True, default='')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='+')
+
+    class Meta:
+        ordering = ('start_date', 'id')
+        constraints = [models.CheckConstraint(check=models.Q(end_date__gte=models.F('start_date')),
+                                              name='time_off_valid_period')]
+
+
+class AssignmentSetting(models.Model):
+    """Project weights of the assignment score; a weight of 0 switches that factor off."""
+    project = models.OneToOneField(Project, on_delete=models.CASCADE, related_name='assignment_setting')
+    skill_weight = models.DecimalField(max_digits=5, decimal_places=2, default=4, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    quality_weight = models.DecimalField(max_digits=5, decimal_places=2, default=3, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    workload_weight = models.DecimalField(max_digits=5, decimal_places=2, default=2, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    familiarity_weight = models.DecimalField(max_digits=5, decimal_places=2, default=1, validators=[MinValueValidator(0), MaxValueValidator(10)])
+    # Skill and quality count this many times more for critical and high priority visits.
+    urgent_boost = models.DecimalField(max_digits=4, decimal_places=2, default=1.5, validators=[MinValueValidator(1), MaxValueValidator(5)])
+    updated_at = models.DateTimeField(auto_now=True)

@@ -1,8 +1,6 @@
 <template>
 	<div>
-		<div class="empty-container" v-if="fileLists.length === 0">
-			<h4>هیچ فایلی وجود ندارد!</h4>
-		</div>
+		<EmptyState v-if="fileLists.length === 0" kind="documents" title="هیچ فایلی وجود ندارد" />
 		<div v-else class="action-list">
 			<div class="box">
 				<Tableview
@@ -54,8 +52,9 @@
 <script>
 import Tableview from '../../components/Tableview/index.vue';
 
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
-	components: {
+	components: { EmptyState,
 		Tableview,
 	},
 	data() {

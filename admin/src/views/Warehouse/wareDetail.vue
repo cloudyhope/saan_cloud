@@ -58,36 +58,8 @@
             <td>{{ item.location.name_fa }}</td>
             <td class="persian-number">{{ item.stock_count }}</td>
             <td>
-              <button
-                @click="openstockModal(item)"
-                v-b-tooltip.hover
-                title="افزایش موجودی"
-                class="opt-btn"
-              >
-                <img src="@/assets/images/iconPack/solar_add-square-broken.svg" />
-              </button>
-              <button @click="openUseModal(item)" v-b-tooltip.hover title="مصرف" class="opt-btn">
-                <img src="@/assets/images/iconPack/use.svg" />
-              </button>
-              <button @click="openUseModal(item, 'SCRAP')" v-b-tooltip.hover title="ثبت ضایعات" aria-label="ثبت ضایعات" class="opt-btn"><img src="@/assets/images/iconPack/red-trash.svg" alt="" /></button>
-              <button
-                @click="openRelocateModal(item)"
-                v-b-tooltip.hover
-                title="انتقال به انبار"
-                class="opt-btn"
-              >
-                <img src="@/assets/images/iconPack/relocate.svg" />
-              </button>
-
-              <button
-                @click="openDeliverModal(item)"
-                v-b-tooltip.hover
-                title="انتقال به کاربر"
-                class="opt-btn"
-              >
-                <img src="@/assets/images/iconPack/deliver.svg" />
-              </button>
-            </td>
+                <RowActions :items="[{ label: 'افزایش موجودی', icon: 'plus', action: () => openstockModal(item) }, { label: 'مصرف', icon: 'minus', action: () => openUseModal(item) }, { label: 'انتقال به انبار', icon: 'transfer', action: () => openRelocateModal(item) }, { label: 'انتقال به کاربر', icon: 'user', action: () => openDeliverModal(item) }, { label: 'ثبت ضایعات', icon: 'trash', action: () => openUseModal(item, 'SCRAP'), danger: true }]" />
+              </td>
           </tr>
         </template>
         <template v-else #TableBody>
@@ -98,33 +70,8 @@
             <td>{{ item.user.first_name }} {{ item.user.last_name }}</td>
             <td class="persian-number">{{ item.stock_count }}</td>
             <td>
-              <button
-                @click="openUseModal(item)"
-                v-b-tooltip.hover
-                title="انتقال به مصرف"
-                class="opt-btn"
-              >
-                <img src="@/assets/images/iconPack/use.svg" />
-              </button>
-              <button @click="openUseModal(item, 'SCRAP')" v-b-tooltip.hover title="ثبت ضایعات" aria-label="ثبت ضایعات" class="opt-btn"><img src="@/assets/images/iconPack/red-trash.svg" alt="" /></button>
-              <button
-                @click="openRelocateModal(item)"
-                v-b-tooltip.hover
-                title="انتقال به انبار"
-                class="opt-btn"
-              >
-                <img src="@/assets/images/iconPack/relocate.svg" />
-              </button>
-
-              <button
-                @click="openDeliverModal(item)"
-                v-b-tooltip.hover
-                title="انتقال به کاربر"
-                class="opt-btn"
-              >
-                <img src="@/assets/images/iconPack/deliver.svg" />
-              </button>
-            </td>
+                <RowActions :items="[{ label: 'انتقال به مصرف', icon: 'minus', action: () => openUseModal(item) }, { label: 'انتقال به انبار', icon: 'transfer', action: () => openRelocateModal(item) }, { label: 'انتقال به کاربر', icon: 'user', action: () => openDeliverModal(item) }, { label: 'ثبت ضایعات', icon: 'trash', action: () => openUseModal(item, 'SCRAP'), danger: true }]" />
+              </td>
           </tr>
         </template>
       </Tableview>
@@ -296,8 +243,9 @@
 import { persistentRequestKey, clearRequestKey } from '@/utils/idempotency';
 import InfoGrid from '@/components/RecordDetails/InfoGrid.vue';
 import Tableview from '../../components/Tableview/index.vue';
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     InfoGrid,
     Tableview,
   },

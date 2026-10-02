@@ -108,22 +108,7 @@
               <td class="persian-number">{{ item.visit_count }}</td>
 
               <td>
-                <button
-                  type="button"
-                  class="icon-action"
-                  @click="detail(item.id)"
-                  aria-label="مشاهده جزئیات"
-                  title="مشاهده جزئیات"
-                >
-                  <ActionIcon name="view" />
-                </button>
-                <img
-                  v-b-tooltip.hover
-                  title="ویرایش"
-                  @click="editStore(item)"
-                  class="eye-icon icon-complement"
-                  src="../../assets/images/iconPack/basil_edit-outline.svg"
-                />
+                <RowActions :items="[{ label: 'مشاهده جزئیات', icon: 'view', action: () => detail(item.id) }, { label: 'ویرایش', icon: 'edit', action: () => editStore(item) }]" />
               </td>
             </tr>
           </template>
@@ -137,8 +122,9 @@ import FilterPanel from '../../components/FilterPanel/index.vue';
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     FilterPanel,
     Tableview,
     Pagination,

@@ -32,6 +32,9 @@ admin_build:
     - cd admin
     - npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
   script:
+    - node scripts/detail-values.test.cjs
+    - node scripts/dashboard-data.test.cjs
+    - node scripts/navigation.test.cjs
     - npm run build-test
 
 expert_build:
@@ -42,4 +45,5 @@ expert_build:
     - cd expert
     - npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
   script:
+    - node scripts/check-field-flows.cjs
     - npm run build-production

@@ -38,7 +38,7 @@ export async function enterSession(api) {
 export function requiredMenu(route) {
   if (['home', 'buildingDetail', 'clientSupport',
        'qrCodeScanner', 'userCreateInvoice', 'successPurchaseInvoice'].includes(route)) return 'home';
-  if (route === 'clientVisitDetail') return 'clientVisits';
+  if (route === 'clientVisitDetail' || route === 'clientVisitChat') return 'clientVisits';
   if (route === 'clientVisits' || route === 'clientWarranty') return route;
   if (['setting', 'verifyProfile', 'rules', 'faq', 'contact', 'personalInfo', 'aboutUs', 'authenticationPage'].includes(route)) return 'setting';
   if (['edu', 'academyDetail', 'guideLine'].includes(route)) return 'edu';

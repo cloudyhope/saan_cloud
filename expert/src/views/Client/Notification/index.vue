@@ -12,7 +12,7 @@
       <div v-if="unreadCount && loaded" class="inbox-actions"><button type="button" :disabled="loading || markAllBusy || !!readingId" @click="markAllRead">{{ markAllBusy ? 'در حال ثبت…' : 'خواندن همه اعلان‌ها' }}</button></div>
       <v-alert v-if="error" type="error" outlined role="alert">{{ error }} <v-btn text color="error" @click="load(true)">تلاش دوباره</v-btn></v-alert>
       <v-skeleton-loader v-if="loading && !loaded" type="list-item-three-line, list-item-three-line, list-item-three-line" />
-      <div v-else-if="loaded && !items.length" class="inbox-empty"><v-icon color="#6b97a6" size="34">mdi-bell-check-outline</v-icon><h2>هنوز اعلانی ندارید</h2><p>وقتی رویدادی مربوط به شما ثبت شود، همین‌جا دیده می‌شود.</p></div>
+      <EmptyState v-else-if="loaded && !items.length" kind="notifications" title="هنوز اعلانی ندارید" description="وقتی رویدادی مربوط به شما ثبت شود، همین‌جا دیده می‌شود." />
       <div v-else class="inbox-list"><button v-for="item in items" :key="item.id" type="button" class="inbox-card" :class="{ unread: !item.read_at }" :disabled="loading || markAllBusy || !!readingId" @click="openItem(item)"><span class="inbox-card-icon"><v-icon color="#246b84" size="21">{{ icon(item.kind) }}</v-icon></span><span class="inbox-card-copy"><span class="inbox-card-title"><strong>{{ item.title }}</strong><i v-if="!item.read_at" aria-label="خوانده‌نشده"></i></span><span>{{ item.body }}</span><small>{{ date(item.created_at) }}</small></span><v-icon color="#7c9aa9" size="19">mdi-chevron-left</v-icon></button></div>
       <button v-if="nextOffset !== null && loaded" type="button" class="inbox-more" :disabled="loading || markAllBusy || !!readingId" @click="load(false)">{{ loading ? 'در حال دریافت…' : 'اعلان‌های بیشتر' }}<v-icon size="18">mdi-chevron-down</v-icon></button>
     </div>
@@ -22,7 +22,9 @@
 <script>
 import { errorMessage } from '@/utils/clientRequests';
 
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
+  components: { EmptyState },
   name: 'PersonalNotifications',
   data: () => ({ items: [], unreadCount: 0, nextOffset: null, loading: false, loaded: false,
     error: '', sequence: 0, readingId: null, markAllBusy: false }),
@@ -41,7 +43,7 @@ export default {
     },
   },
   methods: {
-    icon(kind) { return ({ support_reply: 'mdi-message-text-outline', warranty_decision: 'mdi-shield-check-outline', repair_status: 'mdi-tools', visit_assignment: 'mdi-clipboard-check-outline' })[kind] || 'mdi-bell-outline'; },
+    icon(kind) { return ({ support_reply: 'mdi-message-text-outline', warranty_decision: 'mdi-shield-check-outline', repair_status: 'mdi-tools', visit_assignment: 'mdi-clipboard-check-outline', visit_returned: 'mdi-backup-restore', visit_reviewed: 'mdi-check-decagram-outline', visit_report: 'mdi-file-document-check-outline', visit_due: 'mdi-calendar-clock', visit_overdue: 'mdi-calendar-alert', visit_chat: 'mdi-chat-processing-outline', part_decision: 'mdi-package-variant-closed-check' })[kind] || 'mdi-bell-outline'; },
     number(value) { return Number(value || 0).toLocaleString('fa-IR'); },
     date(value) { if (!value) return 'زمان نامشخص'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'زمان نامشخص' : parsed.toLocaleString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }); },
     async load(reset) {
@@ -81,7 +83,9 @@ export default {
         if (item.kind === 'support_reply' && item.object_id) this.$router.push({ name: this.hasClient ? 'clientSupport' : 'chatHistory', query: { ticket: item.object_id } }).catch(() => {});
         if (item.kind === 'warranty_decision') this.$router.push({ name: 'clientWarranty', query: { tab: 'claims' } }).catch(() => {});
         if (item.kind === 'repair_status') this.$router.push({ name: 'clientWarranty', query: { tab: 'repairs' } }).catch(() => {});
-        if (item.kind === 'visit_assignment') this.$router.push(this.hasExpert && item.object_id ? { name: 'storeDetail', params: { id: item.object_id } } : { name: 'projects' }).catch(() => {});
+        if (item.kind === 'visit_chat' && item.object_id) this.$router.push({ name: this.hasExpert && item.title.includes('مدیر ساختمان') ? 'visitChat' : this.hasClient ? 'clientVisitChat' : 'visitChat', params: { id: item.object_id } }).catch(() => {});
+        if (['visit_assignment', 'visit_returned', 'visit_reviewed', 'visit_due', 'visit_overdue', 'part_decision'].includes(item.kind)) this.$router.push(this.hasExpert && item.object_id ? { name: 'storeDetail', params: { id: item.object_id } } : { name: 'projects' }).catch(() => {});
+        if (item.kind === 'visit_report' && item.object_id) this.$router.push({ name: this.hasClient ? 'clientVisitDetail' : 'storeDetail', params: { id: item.object_id } }).catch(() => {});
       }
     },
     async markAllRead() {

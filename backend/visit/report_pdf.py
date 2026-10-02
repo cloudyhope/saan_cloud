@@ -74,6 +74,10 @@ def _answer_text(answer):
               *(answer.get('multichoice') or []), answer.get('text'), answer.get('description')]
     if answer.get('number') is not None:
         values.append(str(answer['number']))
+    if answer.get('score') is not None:
+        values.append(f"{answer['score']} از 5")
+    if answer.get('price') is not None:
+        values.append(f"{answer['price']:,} ریال")
     if answer.get('bool') is True:
         values.append('بله')
     elif answer.get('bool') is False:
@@ -162,6 +166,52 @@ def render_report_pdf(snapshot):
                 line_y -= leading
             y -= card_height + 11
             continuation = True
+    def text_block(heading, text, continuation_label):
+        nonlocal y
+        title_lines = _wrapped(heading, width - 2 * margin - 28, font, 10)
+        value_lines = _wrapped(text, width - 2 * margin - 28, font, 9)
+        remaining = [(line, 10, 18, '#173e57') for line in title_lines]
+        remaining += [(line, 9, 17, '#416476') for line in value_lines]
+        continuation = False
+        while remaining:
+            header_items = [(continuation_label, 9, 17, '#2d7187')] if continuation else []
+            full_height = 24 + sum(row[2] for row in header_items + remaining)
+            if y - full_height < 72 and full_height <= height - 135 - 72:
+                y = start_page()
+            if y < 150:
+                y = start_page()
+            selected = list(header_items)
+            while remaining and 24 + sum(row[2] for row in selected) + remaining[0][2] <= y - 72:
+                selected.append(remaining.pop(0))
+            if not selected or selected == header_items:
+                y = start_page()
+                continue
+            card_height = 24 + sum(row[2] for row in selected)
+            page.setFillColor(colors.white)
+            page.setStrokeColor(colors.HexColor('#dce8ee'))
+            page.roundRect(margin, y - card_height, width - 2 * margin, card_height, 10, stroke=1, fill=1)
+            line_y = y - 19
+            for line, size, leading, color in selected:
+                page.setFont(font, size)
+                page.setFillColor(colors.HexColor(color))
+                page.drawRightString(right - 14, line_y, _visual(line))
+                line_y -= leading
+            y -= card_height + 11
+            continuation = True
+
+    parts = payload.get('parts') or []
+    if parts:
+        labels = [f'{i}. {p.get("name") or "قطعه"}: {p.get("amount")} {p.get("unit") or "عدد"}'
+                  for i, p in enumerate(parts, 1)]
+        text_block(f'قطعات تأمین‌شده برای این خدمت ({len(parts)} مورد)', '\n'.join(labels), 'ادامه قطعات')
+    wage = payload.get('wage')
+    if wage:
+        text_block('اجرت خدمت', f'{int(wage):,} ریال', 'ادامه اجرت')
+    photos = payload.get('photos') or []
+    if photos:
+        photo_labels = [f'{i}. {p.get("type_name") or "تصویر خدمت"}' for i, p in enumerate(photos, 1)]
+        text_block(f'مدارک تصویری ثبت‌شده خدمت ({len(photos)} مورد)', '  ·  '.join(photo_labels),
+                   'ادامه مدارک تصویری')
     page.save()
     output.seek(0)
     return output

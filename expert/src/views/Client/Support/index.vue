@@ -20,7 +20,7 @@
             <router-link v-if="detail.visit_id" :to="{ name: isExpert ? 'storeDetail' : 'clientVisitDetail', params: { id: detail.visit_id } }" class="support-context">خدمت مرتبط را ببینید <v-icon size="18">mdi-arrow-left</v-icon></router-link>
           </section>
           <section class="support-panel" aria-label="پیام‌های گفتگو">
-            <div v-if="!detail.messages.length" class="support-empty">هنوز پیامی در این گفتگو ثبت نشده است.</div>
+            <EmptyState v-if="!detail.messages.length" kind="chat" size="sm" inline title="هنوز پیامی ثبت نشده" description="" />
             <div v-for="message in detail.messages" :key="message.id" class="support-message" :class="{ mine: message.is_mine }">
               <span>{{ message.is_mine ? 'شما' : 'پشتیبانی' }} · {{ date(message.created_at) }}</span>
               <p>{{ message.body }}</p>
@@ -45,7 +45,7 @@
         <section class="support-list" aria-labelledby="support-list-heading">
           <div class="support-section-head"><div><span class="support-kicker">پیگیری ساده</span><h2 id="support-list-heading">گفتگوهای شما</h2></div><span class="support-count">{{ number(tickets.length) }}</span></div>
           <v-skeleton-loader v-if="loading" type="list-item-three-line, list-item-three-line" />
-          <div v-else-if="!tickets.length && !error" class="support-empty"><v-icon color="#5e8194" size="29">mdi-forum-outline</v-icon><p>هنوز گفتگویی ندارید. از همین‌جا موضوعتان را مطرح کنید.</p></div>
+          <EmptyState v-else-if="!tickets.length && !error" kind="chat" size="sm" title="هنوز گفتگویی ندارید" description="از همین‌جا موضوعتان را مطرح کنید." />
           <button v-for="ticket in tickets" :key="ticket.id" class="support-ticket" type="button" @click="openTicket(ticket.id)"><span class="support-ticket-icon"><v-icon color="#266681" size="21">mdi-message-text-outline</v-icon></span><span class="support-ticket-copy"><strong>{{ ticket.title }}</strong><small>{{ date(ticket.updated_at) }}</small></span><span class="support-status" :class="statusClass(ticket.status)">{{ statusLabel(ticket.status) }}</span><v-icon color="#39718b" size="19">mdi-chevron-left</v-icon></button>
         </section>
       </template>
@@ -56,7 +56,9 @@
 <script>
 import { errorMessage } from '@/utils/clientRequests';
 
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
+  components: { EmptyState },
   name: 'ClientSupport',
   data: () => ({ tickets: [], detail: null, loading: false, detailLoading: false, sending: false,
     error: '', creating: false, title: '', body: '', reply: '', sequence: 0 }),

@@ -125,12 +125,8 @@
 							</td>
 							<td class="persian-number">{{ item.visit.visit_turn }}</td>
 							<td>
-								<img
-									@click="visitDetail(item.visit.id)"
-									class="eye-icon"
-									src="../../assets/images/iconPack/eye.svg"
-								/>
-							</td>
+                <RowActions :items="[{ label: 'مشاهده جزئیات', icon: 'view', action: () => visitDetail(item.visit.id) }]" />
+              </td>
 						</tr>
 					</template>
 				</Tableview>
@@ -146,8 +142,9 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from 'vue-pagination-2';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-	components: {
+	components: { RowActions,
 		Tableview,
 		Pagination,
 	},

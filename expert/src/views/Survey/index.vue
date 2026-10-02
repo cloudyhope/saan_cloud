@@ -4,12 +4,7 @@
 
       <Skeleton v-if="initialLoading" type="list" :count="4" wrapper-class="ma-5" :loading="true" />
 
-      <div v-else-if="surveyList.length === 0">
-      <v-card class="ma-4 pa-12 d-flex flex-column align-center">
-        <v-img max-width="187" class="empty-state-img" src="@/assets/images/empty-survey.svg"/>
-        <span class="empty-state-txt">هنوز پرسشنامه‌ای برای شما تعریف نشده است</span>
-      </v-card>
-    </div>
+      <EmptyState v-else-if="surveyList.length === 0" kind="documents" title="هنوز پرسشنامه‌ای تعریف نشده" description="پرسشنامه‌های شما پس از تعریف توسط شرکت اینجا دیده می‌شوند." />
       <div v-else class="ma-5">
         <!-- <span class="titles">پرسشنامه ها ({{surveyList.length}} عدد)</span> -->
         <v-card v-for="survey in surveyList" :key="survey.id" @click="surveyDetail(survey)" class="cards-shadow pa-4">
@@ -37,8 +32,9 @@
   import Button from "@/components/Button/Button.vue";
   import BaseTopBar from "@/components/Topbar/BaseTopbar.vue";
   import Skeleton from "@/components/Skeleton/index.vue";
+  import EmptyState from "@/components/EmptyState/index.vue";
   export default {
-    components: {
+    components: { EmptyState,
       EmptyContainer,
       Button,
       BaseTopBar,

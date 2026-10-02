@@ -153,9 +153,8 @@
 								<span v-if="item.status === '4'">رد شده</span> -->
 							</td>
 							<td>
-								<img @click="supervisiorDetail(item.id)" class="eye-icon"
-									src="../../assets/images/iconPack/eye.svg" />
-							</td>
+                <RowActions :items="[{ label: 'مشاهده جزئیات', icon: 'view', action: () => supervisiorDetail(item.id) }]" />
+              </td>
 						</tr>
 					</template>
 				</Tableview>
@@ -167,8 +166,9 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from 'vue-pagination-2';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-	components: {
+	components: { RowActions,
 		Tableview,
 		Pagination,
 	},

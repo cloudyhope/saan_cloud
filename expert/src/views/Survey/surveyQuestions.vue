@@ -1,613 +1,183 @@
 <template>
-  <div>
-    <BaseTopBar title="سوالات" />
+  <main class="vf-page question-page" dir="rtl">
+    <VisitTopBar :title="stepTitle" :eyebrow="eyebrow" :fallback="overviewRoute" back-label="بازگشت به پرسشنامه">
+      <div v-if="rows.length" class="question-progress" aria-live="polite">
+        <div class="question-progress-label"><span>{{ faNumber(answeredCount) }} از {{ faNumber(rows.length) }} پرسش پاسخ داده شده</span>
+          <strong v-if="requiredLeft && editable">{{ faNumber(requiredLeft) }} الزامی مانده</strong>
+          <strong v-else-if="!requiredTotal">بدون پرسش الزامی</strong><strong v-else>الزامی‌ها کامل است</strong></div>
+        <div class="vf-progress hero-progress"><span :style="{ width: percent + '%' }" /></div>
+      </div>
+    </VisitTopBar>
 
-    <FullLoading v-if="loading" />
-    <div class="question-tools">
-      <button type="button" class="location-button" @click="captureLocation">{{ locationLabel }}</button>
-      <p v-if="answerError" class="answer-error" role="alert">{{ answerError }}</p>
+    <div v-if="loading && !rows.length" class="vf-body" role="status" aria-label="در حال دریافت پرسش‌ها">
+      <v-skeleton-loader v-for="n in 3" :key="n" class="vf-skeleton" type="article" />
     </div>
-    <div class="containers">
-      <v-card
-        v-for="questions in listQuestions"
-        :key="questions.question.id"
-        class="mb-4 pa-4 quest-cards"
-      >
-        <div class="d-flex flex-column">
-          <span class="quest-questions">{{ questions.question.text }}</span>
-          <span class="desc">{{ questions.question.description }}</span>
+    <div v-else class="vf-body">
+      <div v-if="loadError" class="vf-banner vf-banner-danger" role="alert">
+        <v-icon color="#8a2f2a">mdi-alert-circle-outline</v-icon>
+        <div><strong>پرسش‌ها دریافت نشد</strong><p>{{ loadError }}</p>
+          <button type="button" class="vf-banner-action" @click="load"><v-icon size="16">mdi-refresh</v-icon>تلاش دوباره</button></div>
+      </div>
+      <div v-else-if="!editable && settingsLoaded" class="vf-banner vf-banner-info" role="note">
+        <v-icon color="#1d4f6d">mdi-lock-outline</v-icon><div><strong>فقط مشاهده</strong><p>این پرسشنامه ارسال شده است.</p></div>
+      </div>
+      <EmptyState v-if="!loadError && !rows.length && !loading" kind="documents" size="sm" title="در این بخش پرسشی تعریف نشده" description="" />
+
+      <article v-for="(row, index) in rows" :key="row.question.id" class="vf-card question-card"
+               :class="{ 'is-answered': row.answered, 'is-required-missing': row.required && !row.answered && editable }"
+               :aria-labelledby="'sq-title-' + row.question.id">
+        <header class="question-head">
+          <span class="question-index" aria-hidden="true">{{ faNumber(index + 1) }}</span>
+          <div class="question-copy"><h2 :id="'sq-title-' + row.question.id">{{ row.question.text }}</h2>
+            <p v-if="row.question.description" class="question-desc">{{ row.question.description }}</p></div>
+        </header>
+        <div class="question-tags">
+          <span v-if="row.required" class="vf-chip" :class="row.answered ? 'vf-tone-done' : 'vf-required'">الزامی</span>
+          <span v-else class="vf-chip vf-tone-muted">اختیاری</span>
+          <span class="save-state" :class="'is-' + row.state" role="status">
+            <template v-if="row.state === 'saving'"><v-progress-circular indeterminate size="13" width="2" color="#1d608b" /> در حال ذخیره…</template>
+            <template v-else-if="row.state === 'saved'"><v-icon size="15" color="#1a7154">mdi-check-circle</v-icon> ذخیره شد</template>
+            <template v-else-if="row.state === 'error'"><v-icon size="15" color="#a33a35">mdi-alert-circle</v-icon> ذخیره نشد</template>
+            <template v-else-if="row.answered"><v-icon size="15" color="#1a7154">mdi-check</v-icon> پاسخ داده شده</template>
+          </span>
         </div>
-        <v-sheet
-          v-for="answerType in questions.question.answer_params"
-          :key="questions.question.id + answerType.answer_type.id"
-        >
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'YesNo'"
-            v-model="questions.submitted_answer.bool"
-            row
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio label="بله" :value="true"></v-radio>
-            <v-radio label="خیر" :value="false"></v-radio>
-          </v-radio-group>
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'Triple'"
-            v-model="questions.submitted_answer.bool"
-            row
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio label="بله" :value="true"></v-radio>
-            <v-radio label="خیر" :value="false"></v-radio>
-            <v-radio label="ندارد" :value="null"></v-radio>
-          </v-radio-group>
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'Score'"
-            v-model="questions.submitted_answer.score"
-            row
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio class="perisan" label="۱" :value="1"></v-radio>
-            <v-radio class="perisan" label="۲" :value="2"></v-radio>
-            <v-radio class="perisan" label="۳" :value="3"></v-radio>
-            <v-radio class="perisan" label="۴" :value="4"></v-radio>
-            <v-radio class="perisan" label="۵" :value="5"></v-radio>
-          </v-radio-group>
-          <div
-            class="texteara-div"
-            v-if="answerType.answer_type.name === 'Description'"
-          >
-            <textarea
-              class="textarea"
-              id="txt"
-              rows="5"
-              v-model="questions.submitted_answer.description"
-            ></textarea>
-            <button
-              @click="radioGroup(questions, answerType)"
-              class="textarea-btn"
-            >
-              ثبت
-            </button>
-          </div>
-          <div v-if="answerType.answer_type.name === 'Multichoice'">
-            <div
-              v-for="answersQus in questions.question.answer_choices"
-              :key="answersQus.id"
-            >
-              <v-checkbox
-                v-model="questions.submitted_answer.multichoice"
-                :label="answersQus.answer"
-                :value="answersQus.id"
-                @change="validatorHandler(questions, answerType)"
-              ></v-checkbox>
-            </div>
-            <div class="btn-container">
-              <div class="err-container">
-              <span class="err-message" v-if="answerType.showErr">
-                {{ answerType.validation.choice_count_error_msg_fa }}
-              </span>
-            </div>
-              <button
-                class="submit-btn"
-                @click="radioGroup(questions, answerType)"
-                :disabled=" answerType.disabled"
-              >
-                ثبت
-              </button>
-            </div>
-          </div>
-
-          <v-radio-group
-            v-if="answerType.answer_type.name === 'RadioChoice'"
-            v-model="questions.submitted_answer.radio"
-            @change="radioGroup(questions, answerType)"
-          >
-            <v-radio
-              v-for="answersQus in questions.question.radio_choices"
-              :key="answersQus.id + 'radios' + questions.question.id"
-              :label="answersQus.answer"
-              :value="answersQus"
-            ></v-radio>
-          </v-radio-group>
-          <Multiselect
-            v-if="answerType.answer_type.name === 'DropDownList'"
-            :options="questions.question.dropdown_choices"
-            @select="radioGroup(questions, answerType)"
-            v-model="questions.submitted_answer.dropdown"
-            :custom-label="customLabel"
-            placeholder="لطفا یک مورد را انتخاب نمایید"
-            selectLabel=""
-            class="mt-4"
-          >
-          </Multiselect>
-
-          <!-- <div v-if="answerType.name === 'RadioChoice'">
-            <div
-              v-for="answersQus in questions.question.answer_choices"
-              :key="answersQus.id"
-            >
-              <v-radio-group
-                v-model="questions.submitted_answer.radioChoice"
-                :label=""
-                :value="answersQus.id"
-               
-              ></v-radio-group>
-            </div>
-            <div class="btn-container">
-              
-            </div>
-          </div> -->
-          <div
-            class="d-flex justify-space-between mt-2"
-            v-if="answerType.answer_type.name === 'Input'"
-          >
-          
-            <div class="quest-container">
-              <div class="d-flex justify-space-between mb-2">
-                <div class="input-question-container">
-              <span v-if="questions.question.short_text !== null" class="ml-2"
-              >{{ questions.question.short_text }}:</span
-            >
-              <input
-                v-model="questions.submitted_answer.text"
-                class="type-input"
-                type="text"
-                @input="validatorHandler(questions, answerType)"
-              />
-            </div>
-                
-                <button
-                  class="submit-btn"
-                  @click="radioGroup(questions, answerType)"
-                  :disabled="answerType.disabled"
-                >
-                  ثبت
-                </button>
-              </div>
-              <span class="err-message" v-if="answerType.showErr">
-                {{ answerType.validation.regex_error_msg_fa }}
-              </span>
-            </div>
-          </div>
-
-          <div
-            class="number-container"
-            v-if="answerType.answer_type.name === 'Number'"
-          >
-            <span class="number-text"
-              >{{ questions.question.short_text }}:</span
-            >
-            <div class="input-contianer">
-              <v-icon
-                :disabled="plusBtn"
-                @click="increase(questions, answerType)"
-                size="small"
-                >mdi-plus</v-icon
-              >
-              <span
-                v-if="
-                  questions.submitted_answer.loading !== true &&
-                  questions.submitted_answer.number !== null
-                "
-                class="mx-2"
-                >{{ questions.submitted_answer.number }}</span
-              ><span
-                v-if="
-                  questions.submitted_answer.loading !== true &&
-                  questions.submitted_answer.number === null
-                "
-                class="mx-2"
-                >0</span
-              >
-              <v-progress-circular
-                :width="2"
-                :size="10"
-                indeterminate
-                color="#c4c4c4"
-                class="mx-3"
-                v-if="questions.submitted_answer.loading"
-              ></v-progress-circular>
-              <v-icon
-                :disabled="questions.submitted_answer.number <= 0"
-                @click="decrease(questions, answerType)"
-                size="small"
-                >mdi-minus</v-icon
-              >
-            </div>
-          </div>
-          <!-- <input
-                type="number"
-                class="number-input"
-                v-model="questions.submitted_answer.number"
-                @change="radioGroup(questions, answerType)"
-              /> -->
-        </v-sheet>
-      </v-card>
+        <AnswerInput v-for="param in row.params" :key="row.question.id + '-' + param.id" :question="row.question" :answer="row.answer"
+                     :param="param" :saving="row.state === 'saving'" :readonly="!editable" @save="save(row, $event)" />
+        <p v-if="!row.params.length" class="vf-muted">نوع پاسخ این پرسش تعریف نشده است.</p>
+        <div v-if="row.state === 'error'" class="row-error" role="alert"><span>{{ row.error }}</span>
+          <button type="button" class="vf-btn vf-btn-danger vf-btn-small" @click="retry(row)"><v-icon size="16">mdi-refresh</v-icon>تلاش دوباره</button></div>
+      </article>
     </div>
-    <EmptyContainer />
-    <!-- <OverlayButton
-      @click="$router.go(-1)"
-      title="ذخیره اطلاعات"
-      :disabled="disableSaveBtn"
-    /> -->
-  </div>
+
+    <footer v-if="settingsLoaded" class="vf-actionbar">
+      <p v-if="editable && requiredLeft" class="vf-actionbar-note is-danger">{{ faNumber(requiredLeft) }} پرسش الزامی این بخش هنوز پاسخ ندارد.</p>
+      <div class="vf-actionbar-row">
+        <button type="button" class="vf-btn vf-btn-ghost" @click="$router.push(overviewRoute)"><v-icon size="19">mdi-format-list-checks</v-icon>همه بخش‌ها</button>
+        <button v-if="nextStep" type="button" class="vf-btn vf-btn-primary" @click="goNext">بخش بعد<v-icon color="white" size="19">mdi-arrow-left</v-icon></button>
+      </div>
+    </footer>
+  </main>
 </template>
 
 <script>
-import OverlayButton from "../../components/Button/overlayButton.vue";
-import EmptyContainer from "../../components/emptyContainer.vue";
-import Topbar from "../../components/Topbar/backPrps.vue";
-import FullLoading from "../../components/Loading/fullLoading.vue";
-import Multiselect from "vue-multiselect";
-import BaseTopBar from "@/components/Topbar/BaseTopbar.vue";
+import VisitTopBar from '@/components/Visit/VisitTopBar.vue';
+import AnswerInput from '@/components/Visit/AnswerInput.vue';
+import { errorMessage } from '@/utils/clientRequests';
+import { answerParams, faNumber, withProject } from '@/utils/visitFlow';
+
+import EmptyState from '@/components/EmptyState/index.vue';
+function hasValue(answer, fields) {
+  if (!answer || answer.id == null) return false;
+  return fields.some(field => {
+    const value = answer[field];
+    if (field === 'multichoice') return Array.isArray(value) && value.length > 0;
+    if (typeof value === 'string') return value.trim() !== '';
+    return value !== null && value !== undefined;
+  });
+}
+
 export default {
-  name: "Profile",
-  components: {
-    OverlayButton,
-    EmptyContainer,
-    Topbar,
-    FullLoading,
-    Multiselect,
-    BaseTopBar
+  name: 'SurveyQuestionStep',
+  components: { EmptyState, VisitTopBar, AnswerInput },
+  data: () => ({ rows: [], settings: null, settingsLoaded: false, loading: true, loadError: '', sequence: 0 }),
+  computed: {
+    fillId() { return this.$route.params.surveyId; },
+    typeId() { return Number(this.$route.params.id); },
+    visitId() { return this.$route.query.visit || (this.settings && this.settings.survey_fill_out && this.settings.survey_fill_out.visit) || null; },
+    overviewRoute() {
+      return this.visitId ? { name: 'surveyDetailInVisit', params: { visit_id: this.visitId, fill_id: this.fillId } }
+        : { name: 'surveyDetail', params: { id: this.fillId } };
+    },
+    editable() { return !!(this.settings && this.settings.survey_fill_out && !this.settings.survey_fill_out.is_closed); },
+    steps() {
+      if (!this.settings) return [];
+      return [...(this.settings.questions || []).map(item => ({ kind: 'question', item })), ...(this.settings.photos || []).map(item => ({ kind: 'photo', item }))];
+    },
+    stepIndex() { return this.steps.findIndex(step => step.kind === 'question' && step.item.id === this.typeId); },
+    nextStep() { return this.stepIndex >= 0 ? this.steps[this.stepIndex + 1] || null : null; },
+    stepTitle() { const item = this.stepIndex >= 0 ? this.steps[this.stepIndex].item : null; return (item && (item.verbose_name || item.name)) || 'پرسش‌ها'; },
+    eyebrow() {
+      const survey = this.settings && this.settings.survey_fill_out && this.settings.survey_fill_out.survey;
+      const name = survey ? (survey.verbose_name || survey.name) : 'پرسشنامه';
+      return this.stepIndex >= 0 ? `بخش ${faNumber(this.stepIndex + 1)} از ${faNumber(this.steps.length)} · ${name}` : name;
+    },
+    answeredCount() { return this.rows.filter(row => row.answered).length; },
+    requiredLeft() { return this.rows.filter(row => row.required && !row.answered).length; },
+    requiredTotal() { return this.rows.filter(row => row.required).length; },
+    percent() { return this.rows.length ? Math.round((this.answeredCount / this.rows.length) * 100) : 0; },
   },
-  data() {
-    return {
-      listQuestions: [],
-      answerType: [],
-      switch1: [[]],
-      surveyId: null,
-      loading: false,
-      disableSaveBtn: false,
-      minesBtn: false,
-      plusBtn: false,
-      timer: null,
-      title: null,
-      max: 99,
-      inputTextErr: "",
-      inputSnackbar: false,
-      latitude: null,
-      longitude: null,
-      locationLabel: 'افزودن موقعیت (اختیاری)',
-      answerError: '',
-      // minCountDisabled: Boolean,
-      // maxCountDisabled: Boolean,
-    };
-  },
-  mounted() {
-    this.getQuestion();
-  },
+  watch: { '$route.params': { handler: 'load' } },
+  created() { this.load(); },
+  beforeDestroy() { this.sequence++; },
   methods: {
-    captureLocation() {
-      if (!navigator.geolocation) {
-        this.locationLabel = 'موقعیت مکانی در این دستگاه در دسترس نیست';
-        return;
-      }
-      this.locationLabel = 'در حال دریافت موقعیت…';
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          this.latitude = position.coords.latitude;
-          this.longitude = position.coords.longitude;
-          this.locationLabel = 'موقعیت ثبت شد';
-        },
-        () => { this.locationLabel = 'دسترسی به موقعیت داده نشد؛ تلاش دوباره'; },
-        { timeout: 10000, maximumAge: 60000 }
-      );
+    faNumber,
+    fields(row) { return row.params.map(param => param.answer_type.field); },
+    toRow(item) {
+      const type = item.question.survey_question_type || {};
+      const row = { question: item.question, params: answerParams(item.question), answer: item.submitted_answer || {},
+        state: '', error: '', pending: null, required: !!(item.question.is_mandatory || type.is_mandatory), answered: false };
+      row.answered = hasValue(row.answer, this.fields(row));
+      return row;
     },
-    regexValidatorHandler(questions, answerType) {
-      (answerType)
-      let regexVal = answerType.validation.regex;
-      if (answerType.validation.regex !== null) {
-        if (questions.submitted_answer.text !== null) {
-          let x = questions.submitted_answer.text.match(new RegExp(regexVal));
-          ('x',x)
-          if (x !== null) {
-            // answerType.disabled = false;
-            return false;
-          } else {
-            // answerType.disabled = true;
-            return true;
-          }
-        } else {
-          // answerType.disabled = true;
-          return true;
-        }
-      } else {
-        // answerType.disabled = false;
-        return false;
-      }
-    },
-    periodValidatorHandler(questions, answerType) {
-      let minVal = answerType.validation.min_choice_count;
-      let maxVal = answerType.validation.max_choice_count;
-      var maxCountDisabled = false;
-      var minCountDisabled = false;
-
-      if (answerType.validation.min_choice_count !== null) {
-        if (minVal <= questions.submitted_answer.multichoice.length) {
-
-          // answerType.disabled = false;
-          minCountDisabled = false;
-        } else {
-          // answerType.disabled = true;
-         minCountDisabled =true;
-        }
-      } else {
-        // answerType.disabled = true;
-        minCountDisabled = true;
-      }
-      if (answerType.validation.max_choice_count !== null) {
-        if (maxVal >= questions.submitted_answer.multichoice.length) {
-          // answerType.disabled = false;
-          maxCountDisabled = false;
-        } else {
-          // answerType.disabled = true;
-          maxCountDisabled = true;
-        }
-      } else {
-        // answerType.disabled = true;
-        maxCountDisabled = true;
-      }
-      // if (minCountDisabled === false && maxCountDisabled === false) {
-      //   answerType.disabled = false;
-      // } else {
-      //   answerType.disabled = true;
-      // }
-      return [minCountDisabled, maxCountDisabled]
-    },
-    customLabel({ id, answer }) {
-      return `${answer}`;
-    },
-    increase(questions, answerType) {
-      (questions);
-      questions.submitted_answer.number = questions.submitted_answer.number + 1;
-      this.radioGroup(questions, answerType);
-    },
-    decrease(questions, answerType) {
-      questions.submitted_answer.number = questions.submitted_answer.number - 1;
-      this.radioGroup(questions, answerType);
-    },
-    validatorHandler(i,x) {
-      let regval = false;
-            let periodval = [false,false];
-            if (x.answer_type.name === 'Input'){
-              regval = this.regexValidatorHandler(i, x);
-          }
-          if (x.answer_type.name === 'Multichoice'){
-
-            periodval = this.periodValidatorHandler(i, x);
-          }
-            x.disabled = !(!regval && !periodval[0] && !periodval[1])
-            x.showErr = x.disabled;
-    },
-    async getQuestion() {
-      const url = window.location.href;
-      this.surveyId = url.split("/").slice(-2)[0];
-      const id = url.split("/").slice(-1)[0];
-
-      const res = await this.$ApiServiceLayer.get(
-        this.$PATH.RELATIVE_PATH.GET.SURVEY_QUESTIONS +
-          this.surveyId +
-          "/" +
-          "?survey_question_type=" +
-          id +
-          "&p=" +
-          this.$STORE.state.userConfig.selectedProject,
-        this.$PATH.SERVICE_NAME.AUTH
-      );
-      if (res.status === 200) {
-        (res.data);
-        this.listQuestions = res.data;
-
-        for (let i of this.listQuestions) {
-          i.submitted_answer.loading = false;
-          if (i.submitted_answer.id == null) {
-            i.submitted_answer.bool = undefined;
-          }
-          for (let x of i.question.answer_params) {
-            // x.disabled = this.regexValidatorHandler(i,x)
-          // this.validatorHandler(i,x)
-          x.disabled = true;
-          x.showErr = false;
-          }
-          for (let q of i.question.dropdown_choices) {
-            q.name = q.answer;
-          }
-        }
-      }
-    },
-    async radioGroup(questions, answerType) {
-      if (questions.submitted_answer.loading) return;
-      this.answerError = '';
-      this.loading = true;
-      questions.submitted_answer.loading = true;
-      this.minesBtn = true;
-      this.plusBtn = true;
-      const data = {
-        survey_fill_out: parseInt(this.surveyId),
-        survey_question: questions.question.id,
-        longitude:this.longitude,
-        latitude:this.latitude,
-      };
-      if (
-        typeof questions.submitted_answer[answerType.answer_type.field] ===
-          "object" &&
-        typeof questions.submitted_answer[answerType.answer_type.field] !==
-          null &&
-        answerType.answer_type.name !== "Multichoice" &&
-        answerType.answer_type.name !== "Triple"
-      ) {
-        data[answerType.answer_type.field] =
-          questions.submitted_answer[answerType.answer_type.field].id;
-      } else {
-        data[answerType.answer_type.field] =
-          questions.submitted_answer[answerType.answer_type.field];
-      }
+    async load() {
+      const sequence = ++this.sequence;
+      this.loading = true; this.loadError = '';
       try {
-        const res = await this.$ApiServiceLayer.post(
-          this.$PATH.RELATIVE_PATH.POST.POST_SURVEY_QUESTIONS,
-          this.$PATH.SERVICE_NAME.AUTH,
-          data
-        );
-        if (res.status === 200) {
-          await this.getQuestion();
-        } else {
-          this.answerError = 'پاسخ ذخیره نشد. دوباره تلاش کنید.';
-        }
-      } catch (error) {
-        this.answerError = 'ارتباط برقرار نشد. پاسخ را دوباره ثبت کنید.';
-      } finally {
-        questions.submitted_answer.loading = false;
-        this.plusBtn = false;
-        this.minesBtn = false;
-        this.loading = false;
-      }
+        const [settings, questions] = await Promise.all([
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.MULTI.SURVEY_QUESTION_TYPE + this.fillId + '/'), this.$PATH.SERVICE_NAME.AUTH),
+          this.$ApiServiceLayer.get(withProject(this.$PATH.RELATIVE_PATH.GET.SURVEY_QUESTIONS + this.fillId + '/', { survey_question_type: this.typeId }), this.$PATH.SERVICE_NAME.AUTH),
+        ]);
+        if (sequence !== this.sequence) return;
+        if (settings.status === 200) { this.settings = settings.data; this.settingsLoaded = true; }
+        if (questions.status !== 200 || !Array.isArray(questions.data)) { this.loadError = errorMessage(questions); return; }
+        this.rows = questions.data.map(this.toRow);
+      } catch (_) {
+        if (sequence === this.sequence) this.loadError = 'اتصال برقرار نشد. دوباره تلاش کنید.';
+      } finally { if (sequence === this.sequence) this.loading = false; }
     },
-
-    saveBtn() {
-      this.$router.push({ name: "surveyDetail" });
+    async save(row, payload) {
+      if (row.state === 'saving' || !this.editable) return;
+      row.state = 'saving'; row.error = ''; row.pending = payload;
+      try {
+        const response = await this.$ApiServiceLayer.post(withProject(this.$PATH.RELATIVE_PATH.POST.POST_SURVEY_QUESTIONS),
+          this.$PATH.SERVICE_NAME.AUTH, { survey_fill_out: Number(this.fillId), survey_question: row.question.id, ...payload });
+        if (response.status !== 200) { row.state = 'error'; row.error = errorMessage(response); return; }
+        const saved = response.data || {};
+        row.answer = { ...saved, survey_fill_out: undefined, survey_question: undefined };
+        row.answered = hasValue(row.answer, this.fields(row));
+        row.state = 'saved'; row.pending = null;
+        setTimeout(() => { if (row.state === 'saved') row.state = ''; }, 2200);
+      } catch (_) { row.state = 'error'; row.error = 'اتصال برقرار نشد؛ پاسخ ذخیره نشد.'; }
+    },
+    retry(row) { if (row.pending) { const payload = row.pending; row.state = ''; this.save(row, payload); } },
+    goNext() {
+      const step = this.nextStep;
+      if (!step) return this.$router.push(this.overviewRoute);
+      const name = step.kind === 'photo' ? 'surveyImage' : 'surveyQuestions';
+      return this.$router.push({ name, params: { surveyId: this.fillId, id: step.item.id }, query: this.visitId ? { visit: this.visitId } : {} });
     },
   },
 };
 </script>
-<style>
-.containers {
-  margin: 12px 24px;
-}
-.v-input--radio-group.v-input--radio-group--row .v-radio {
-  margin: 0 !important;
-}
-.v-icon.v-icon {
-  font-size: 16px;
-}
-.perisan {
-}
-.texteara-div {
-  display: inline-block;
-  position: relative;
-  border: 1px solid #cdcdcd;
-  width: 100%;
-  margin-top: 10px;
-}
 
-.textarea-btn {
-  position: absolute;
-  bottom: 10px;
-  left: 10px;
-  background: #357AE1;
-  color: #fff;
-  padding: 5px;
-  border-radius: 2px;
-  width: 60px;
-}
-.quest-container {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-}
-.quest-cards {
-  box-shadow: 0px 0px 3px 0px rgba(16, 24, 40, 0.1) !important;
-
-}
-.quest-questions {
-  font-size: 14px;
-  margin-bottom: 4px;
-}
-.desc {
-  font-size: 10px;
-  color: #c4c4c4;
-}
-.textarea {
-  display: block;
-  width: 100%;
-}
-.submit-btn {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  background: #357AE1;
-  border-radius: 4px;
-  color: #fff;
-  width: 60px;
-  height: 30px;
-}
-.btn-container {
-  width: 100%;
-  display: flex;
-  margin-bottom: 10px;
-  align-items: center;
-}
-.err-container {
-  width: 90%;
-}
-.err-message {
-  color: #ff2f2f;
-}
-.number-input {
-  border: 1px solid #c4c4c4;
-  border-radius: 2px;
-  width: 50px;
-}
-.type-input {
-  height: 30px;
-  border-radius: 4px;
-  text-indent: 5px;
-  width: 75%;
-  border: 1px solid #d9d9d9;
-}
-.number-container {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  margin-top: 10px;
-}
-.number-text {
-  width: 20%;
-  font-size: 14px;
-}
-
-.input-contianer {
-  border: 1px solid #c4c4c4;
-  display: flex;
-  align-items: center;
-  justify-content: space-evenly;
-  border-radius: 2px;
-  padding: 2px;
-  width: 80px;
-  height: 30px;
-  border-radius: 4px;
-}
-.submit-btn[disabled] {
-  background: #cec4c4;
-}
-.multiselect {
-  text-align: right !important;
-}
-.multiselect__content {
-  padding-left: 0 !important;
-}
-.multiselect__option--highlight {
-  background: #357AE1 !important;
-}
-.multiselect__select {
-  display: none !important;
-}
-.multiselect__tags {
-  padding: 8px 20px 0 8px !important;
-}
-.input-question-container {
-  width: 100%;
-}
+<style scoped>
+.question-progress { margin-top: 14px; }
+.question-progress-label { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; color: #d4eaf5; margin-bottom: 6px; }
+.question-progress-label strong { color: #fff; white-space: nowrap; }
+.hero-progress { background: #ffffff2e; }
+.question-card.is-answered { border-color: #cfe7d9; }
+.question-card.is-required-missing { border-color: #f0cdc8; }
+.question-head { display: flex; gap: 11px; align-items: flex-start; }
+.question-index { flex: none; width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--vf-brand-soft);
+  color: var(--vf-brand); font-weight: 800; font-size: 13px; }
+.is-answered .question-index { background: var(--vf-ok-soft); color: var(--vf-ok); }
+.question-copy { flex: 1; min-width: 0; }
+.question-copy h2 { font-size: 14.5px; font-weight: 800; line-height: 1.75; margin: 2px 0 0; color: var(--vf-ink); }
+.question-desc { margin: 4px 0 0; color: var(--vf-muted); font-size: 12.5px; line-height: 1.8; white-space: pre-line; }
+.question-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 10px; }
+.save-state { display: inline-flex; align-items: center; gap: 4px; margin-inline-start: auto; font-size: 11.5px; font-weight: 700; color: var(--vf-muted); }
+.save-state.is-saved { color: var(--vf-ok); }
+.save-state.is-error { color: var(--vf-danger); }
+.row-error { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: 12px; padding: 10px 12px;
+  border-radius: 12px; background: var(--vf-danger-soft); color: var(--vf-danger); font-size: 12.5px; font-weight: 700; }
 </style>
-<style>
-.question-tools { margin: 12px 24px; }
-.location-button { min-height: 44px; padding: 8px 14px; border: 1px solid #357ae1; border-radius: 10px; color: #1754a2; background: #fff; }
-.location-button:focus-visible { outline: 3px solid #1754a2; outline-offset: 2px; }
-.answer-error { margin-top: 8px; color: #ad2031; }
-.v-application--is-rtl .v-input--selection-controls__input {
-  margin-left: 0 !important;
-}
-.v-input {
-  text-align: right !important;
-}
-</style>
-<style src="vue-multiselect/dist/vue-multiselect.min.css"></style>

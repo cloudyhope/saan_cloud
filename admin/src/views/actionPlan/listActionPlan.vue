@@ -1,9 +1,7 @@
 <template>
 	<div>
 		<Loading v-if="loading" />
-		<div class="empty-container" v-if="!loading && actionPlanList.length === 0">
-			<h4>هیچ برنامه ای وجود ندارد!</h4>
-		</div>
+		<EmptyState v-if="!loading && actionPlanList.length === 0" kind="visits" title="هیچ برنامه‌ای وجود ندارد" description="برنامه روزانه تازه‌ای ثبت کنید تا اینجا دیده شود." />
 		<div v-else class="action-list">
 			<div class="warning-box">
 				<img src="@/assets/images/iconPack/warning.svg" />
@@ -71,12 +69,8 @@
 								/>
 							</td>
 							<td>
-								<img
-									@click="deleteItemFunc(item.id)"
-									class="delete-icon"
-									src="@/assets/images/iconPack/red-trash.svg"
-								/>
-							</td>
+                <RowActions :items="[{ label: 'حذف', icon: 'delete', action: () => deleteItemFunc(item.id), danger: true }]" />
+              </td>
 							<td>
 								<input
 									type="checkbox"
@@ -121,8 +115,10 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from 'vue-pagination-2';
 import Loading from '../../components/Loading/index.vue';
+import EmptyState from '@/components/EmptyState/index.vue';
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-	components: {
+	components: { RowActions, EmptyState,
 		Tableview,
 		Pagination,
 		Loading,

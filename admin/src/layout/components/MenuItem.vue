@@ -20,24 +20,25 @@
 </template>
 <script>
 import NavigationIcon from '../../components/NavigationIcon/index.vue';
-import { menuContainsRoute, menuDestination, menuIconSource } from '../../utils/adminNavigation';
+import { isTabGroup, menuContainsRoute, menuDestination, menuIconSource } from '../../utils/adminNavigation';
 export default {
   name: 'MenuItem',
   components: { NavigationIcon },
-  props: { menu: { type: Object, required: true }, collapsed: Boolean, depth: { type: Number, default: 0 } },
-  data() { return { open: false }; },
+  // Only one top-level group is open at a time: the sidebar owns that state (`openId`).
+  props: { menu: { type: Object, required: true }, collapsed: Boolean, depth: { type: Number, default: 0 }, openId: { type: [String, Number], default: null } },
   computed: {
-    isGroup() { return this.menu.has_submenu || this.menu.children.length > 0; },
+    open() { return this.openId !== null && String(this.openId) === String(this.menu.id); },
+    // Tab groups are one link; their children appear as tabs above the page.
+    isGroup() { return !isTabGroup(this.menu) && (this.menu.has_submenu || this.menu.children.length > 0); },
     active() { return menuContainsRoute(this.menu, this.$route.path); },
     destination() { return menuDestination(this.menu); },
     iconSource() { return menuIconSource(this.menu, this.active); },
     submenuId() { return 'navigation-group-' + this._uid; },
   },
-  watch: { active: { immediate: true, handler(value) { if (value) this.open = true; } } },
   methods: {
     toggle() {
-      if (this.collapsed) { this.$emit('expand'); this.open = true; }
-      else this.open = !this.open;
+      if (this.collapsed) { this.$emit('expand'); this.$emit('open', this.menu.id); }
+      else this.$emit('open', this.open ? null : this.menu.id);
     },
   },
 };
@@ -49,12 +50,12 @@ export default {
 .menu-link.is-current { color: #fff; background: #345de0; border-color: #5177ec; box-shadow: 0 4px 14px #060f282b; }
 .group-toggle.is-current { background: #263957; border-color: #3c5273; box-shadow: none; color: #dce6ff; }
 .menu-label { flex: 1; min-width: 0; }
-.menu-link .navigation-icon { width: 28px; height: 28px; flex-basis: 28px; padding: 4px; background: #e9f0ff; border-radius: 7px; }
+.menu-link .navigation-icon { width: 21px; height: 21px; flex-basis: 21px; }
 .chevron { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.7; transition: transform .2s; }
 .chevron.rotated { transform: rotate(180deg); }
 .submenu-list { padding: 0 13px 0 0; margin: 8px 20px 12px 0; border-right: 1px solid #3c4c69; }
 .is-child .menu-link { font-size: 12px; min-height: 44px; gap: 10px; padding: 9px 10px; }
-.is-child .navigation-icon { width: 24px; height: 24px; flex-basis: 24px; padding: 3px; }
+.is-child .navigation-icon { width: 18px; height: 18px; flex-basis: 18px; }
 .current-marker { width: 6px; height: 6px; background: #dbe5ff; border-radius: 50%; flex-shrink: 0; }
 .empty-group { color: #aebbd0; padding: 12px; font-size: 11px; }
 .submenu-enter-active, .submenu-leave-active { transition: opacity .18s, transform .18s; }

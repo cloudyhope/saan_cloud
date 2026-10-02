@@ -1,0 +1,115 @@
+/* Field visit flow: detail, questionnaire, photos and history share one visual language. */
+:root {
+  --vf-ink: #15364f; --vf-muted: #5d788a; --vf-soft: #8aa2b1; --vf-line: #e0eaf0; --vf-bg: #f4f8fb;
+  --vf-brand: #1d608b; --vf-brand-dark: #102f4d; --vf-brand-soft: #e8f3f8; --vf-focus: #328fbc;
+  --vf-ok: #1a7154; --vf-ok-soft: #e4f3e9; --vf-warn: #8a5814; --vf-warn-soft: #fff1d9;
+  --vf-danger: #a33a35; --vf-danger-soft: #fbeae8; --vf-radius: 18px;
+}
+.vf-page { min-height: 100vh; background: var(--vf-bg); color: var(--vf-ink); font-size: 14px; line-height: 1.75;
+  padding-bottom: calc(118px + env(safe-area-inset-bottom)); }
+.vf-page *, .vf-sheet * { letter-spacing: 0; }
+.vf-body { padding: 18px 18px 0; display: grid; gap: 16px; }
+.vf-card { background: #fff; border: 1px solid var(--vf-line); border-radius: var(--vf-radius); padding: 16px;
+  box-shadow: 0 4px 15px #1c42620a; overflow-wrap: anywhere; }
+.vf-card-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 0 12px; }
+.vf-card-title h2 { font-size: 15px; font-weight: 800; color: var(--vf-ink); margin: 0; line-height: 1.5; }
+.vf-card-title small { color: var(--vf-muted); font-size: 12px; font-weight: 600; }
+.vf-section-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 6px 2px -4px; }
+.vf-section-label h2 { font-size: 16px; font-weight: 800; margin: 0; color: var(--vf-ink); }
+.vf-section-label span { color: var(--vf-muted); font-size: 12px; font-weight: 600; }
+.vf-muted { color: var(--vf-muted); font-size: 12px; }
+.vf-ltr { direction: ltr; unicode-bidi: isolate; }
+
+/* chips and badges */
+.vf-chip { display: inline-flex; align-items: center; gap: 5px; min-height: 26px; padding: 3px 10px; border-radius: 9px;
+  font-size: 11.5px; font-weight: 700; white-space: nowrap; background: var(--vf-brand-soft); color: var(--vf-brand); }
+.vf-tone-ready { background: #e6f3fd; color: #195b86; }
+.vf-tone-progress, .vf-tone-warning { background: var(--vf-warn-soft); color: var(--vf-warn); }
+.vf-tone-review { background: #ece9fb; color: #4b3f99; }
+.vf-tone-done { background: var(--vf-ok-soft); color: var(--vf-ok); }
+.vf-tone-danger { background: var(--vf-danger-soft); color: var(--vf-danger); }
+.vf-tone-muted { background: #eef2f5; color: #5a6f7d; }
+.vf-required { color: var(--vf-danger); background: var(--vf-danger-soft); }
+
+/* banners */
+.vf-banner { display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 16px; border: 1px solid;
+  font-size: 13px; line-height: 1.8; }
+.vf-banner .v-icon { flex: none; margin-top: 2px; }
+.vf-banner strong { display: block; font-size: 13.5px; margin-bottom: 2px; }
+.vf-banner p { margin: 0; }
+.vf-banner-info { background: #eef7fc; border-color: #cfe5f1; color: #1d4f6d; }
+.vf-banner-warn { background: #fff7e8; border-color: #f2d9a8; color: #7a4d0f; }
+.vf-banner-danger { background: #fdf0ee; border-color: #f0c9c4; color: #8a2f2a; }
+.vf-banner-ok { background: #edf8f1; border-color: #c4e6d1; color: #1b6247; }
+.vf-banner-action { margin-top: 8px; display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 4px 12px;
+  border-radius: 10px; border: 1px solid currentColor; background: #ffffffa8; color: inherit; font-weight: 700; font-size: 12.5px; }
+
+/* buttons */
+.vf-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 48px; padding: 10px 18px;
+  border-radius: 14px; font-size: 14.5px; font-weight: 800; border: 1px solid transparent; cursor: pointer;
+  transition: background-color .18s ease, border-color .18s ease, box-shadow .18s ease, opacity .18s ease; }
+.vf-btn-primary { background: linear-gradient(140deg, var(--vf-brand-dark), var(--vf-brand)); color: #fff;
+  box-shadow: 0 8px 20px #1d608b33; }
+.vf-btn-success { background: linear-gradient(140deg, #13553d, #1f8a63); color: #fff; box-shadow: 0 8px 20px #1a715433; }
+.vf-btn-ghost { background: #fff; color: var(--vf-brand); border-color: #b7d3e0; }
+.vf-btn-danger { background: #fff; color: var(--vf-danger); border-color: #efc3be; }
+.vf-btn-small { min-height: 38px; padding: 6px 13px; border-radius: 11px; font-size: 12.5px; }
+.vf-btn:disabled { opacity: .55; cursor: not-allowed; box-shadow: none; }
+.vf-btn-block { width: 100%; }
+
+/* sticky bottom action bar */
+.vf-actionbar { position: fixed; bottom: 0; left: 0; right: 0; max-width: 576px; margin: 0 auto; z-index: 5;
+  background: #ffffffef; backdrop-filter: blur(8px); border-top: 1px solid var(--vf-line);
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom)); box-shadow: 0 -10px 26px #12385210; }
+.vf-actionbar-row { display: flex; gap: 10px; align-items: stretch; }
+.vf-actionbar-row .vf-btn { flex: 1; }
+.vf-actionbar-note { font-size: 12px; color: var(--vf-muted); margin: 0 0 8px; text-align: center; line-height: 1.6; }
+.vf-actionbar-note.is-danger { color: var(--vf-danger); font-weight: 700; }
+
+/* progress */
+.vf-progress { height: 8px; border-radius: 99px; background: #e3edf3; overflow: hidden; }
+.vf-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #2c8bc0, #1f8a63);
+  transition: width .3s ease; }
+
+/* steps on the visit page */
+.vf-step { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 72px; padding: 13px 14px; text-align: right;
+  background: #fff; border: 1px solid var(--vf-line); border-radius: 16px; color: var(--vf-ink); cursor: pointer;
+  box-shadow: 0 3px 12px #1c426208; transition: border-color .18s ease, box-shadow .18s ease; }
+.vf-step + .vf-step { margin-top: 10px; }
+.vf-step:hover { border-color: #9cc3d8; box-shadow: 0 8px 20px #1c426214; }
+.vf-step-icon { flex: none; width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center;
+  background: var(--vf-brand-soft); }
+.vf-step.is-done .vf-step-icon { background: var(--vf-ok-soft); }
+.vf-step.is-missing .vf-step-icon { background: var(--vf-danger-soft); }
+.vf-step-copy { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.vf-step-copy strong { font-size: 14px; line-height: 1.5; }
+.vf-step-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; color: var(--vf-muted); font-size: 11.5px; }
+.vf-step .vf-progress { height: 5px; }
+
+/* empty and loading */
+.vf-empty { text-align: center; padding: 22px 16px; border: 1px dashed #cadae4; border-radius: 16px; background: #f9fbfc;
+  color: var(--vf-muted); font-size: 12.5px; line-height: 1.8; }
+.vf-empty .v-icon { display: block; margin: 0 auto 6px; }
+.vf-skeleton { border-radius: 16px; overflow: hidden; }
+
+/* key/value rows */
+.vf-kv { display: grid; gap: 10px; }
+.vf-kv-row { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; padding-bottom: 9px;
+  border-bottom: 1px dashed #e5edf2; }
+.vf-kv-row:last-child { border-bottom: 0; padding-bottom: 0; }
+.vf-kv-row dt { color: var(--vf-muted); flex: none; }
+.vf-kv-row dd { margin: 0; font-weight: 700; text-align: left; }
+
+/* bottom sheets */
+.v-sheet.vf-sheet { border-radius: 24px 24px 0 0 !important; padding: 10px 18px calc(18px + env(safe-area-inset-bottom));
+  max-height: 88vh; overflow-y: auto; color: var(--vf-ink); }
+.vf-sheet-handle { width: 42px; height: 5px; border-radius: 9px; background: #d5e1e8; margin: 0 auto 14px; }
+.vf-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.vf-sheet-head h2 { font-size: 17px; font-weight: 800; margin: 0; }
+.vf-icon-btn { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border-radius: 13px;
+  border: 1px solid var(--vf-line); background: #fff; color: var(--vf-ink); }
+
+.vf-page a:focus-visible, .vf-page button:focus-visible, .vf-page input:focus-visible, .vf-page textarea:focus-visible,
+.vf-page select:focus-visible, .vf-sheet button:focus-visible { outline: 3px solid var(--vf-focus) !important; outline-offset: 2px; }
+@media (max-width: 350px) { .vf-body { padding-left: 12px; padding-right: 12px; } .vf-card { padding: 13px; } }
+@media (prefers-reduced-motion: reduce) { .vf-page *, .vf-sheet * { transition: none !important; animation: none !important; } }

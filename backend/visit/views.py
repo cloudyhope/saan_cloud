@@ -817,6 +817,16 @@ class VisitSerializer(serializers.ModelSerializer):
     supervisors = serializers.SerializerMethodField()
     rate = serializers.SerializerMethodField()
     is_pending_request = serializers.SerializerMethodField()
+    priority = serializers.SerializerMethodField()
+    assignment = serializers.SerializerMethodField()
+
+    def get_priority(self, obj):
+        from visit.priority import visit_priority
+        return visit_priority(obj)
+
+    def get_assignment(self, obj):
+        from visit.field_ops import assignment_state
+        return assignment_state(obj)
 
     def get_is_pending_request(self, obj):
         return (not obj.is_active and obj.status == Visit.NOTVISITED
@@ -832,7 +842,7 @@ class VisitSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Visit
-        fields = '__all__'
+        exclude = ('completion_code', 'completion_code_failures', 'completion_code_locked_until')  # only the client app shows the code
 
 
 class VisitOnlySerializer(serializers.ModelSerializer):
@@ -844,7 +854,7 @@ class VisitOnlySerializer(serializers.ModelSerializer):
     # comment_publisher = UserSerializer()
     class Meta:
         model = Visit
-        fields = '__all__'
+        exclude = ('completion_code', 'completion_code_failures', 'completion_code_locked_until')  # only the client app shows the code
 
 class QuestionTypeSerializer(serializers.ModelSerializer):
     project = ProjectSerializer()
@@ -881,6 +891,17 @@ class AnswerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Answer
         fields = '__all__'
+
+
+class FieldAnswerSerializer(serializers.ModelSerializer):
+    """Compact answer for the field questionnaire; the visit is already known to the caller."""
+    dropdown = AnswerChoiceSerializer()
+    radio = AnswerChoiceSerializer()
+
+    class Meta:
+        model = Answer
+        fields = ('id', 'question', 'bool', 'score', 'number', 'text', 'description', 'price',
+                  'multichoice', 'dropdown', 'radio', 'datetime_last_change')
 
 
 class PhotoTypeSerializer(serializers.ModelSerializer):
@@ -974,7 +995,10 @@ class PromoterVisitsAPIView(BaseLimiter, generics.ListAPIView, BaseView):
             rows = rows.filter(has_due_date=True, due_date__gt=today)
         elif schedule == 'unscheduled':
             rows = rows.filter(Q(has_due_date=False) | Q(due_date__isnull=True))
-        return self.limit_queryset(self.get_projectified_queryset(rows)).distinct().order_by('-has_due_date', 'due_date', 'id')
+        from visit.priority import annotate_visits
+        # Higher service priority first (client tier, building sensitivity...), then the nearest due date.
+        rows = annotate_visits(self.limit_queryset(self.get_projectified_queryset(rows)).distinct())
+        return rows.order_by(F('priority_value').desc(nulls_last=True), '-has_due_date', 'due_date', 'id')
 
     serializer_class = VisitSerializer
 
@@ -1017,6 +1041,8 @@ class PromoterVisitsAPIView(BaseLimiter, generics.ListAPIView, BaseView):
 class PromoterVisitStatusChangeSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=(Visit.INPROGRESS, Visit.COMPLETED), required=False)
     supervision_status = serializers.ChoiceField(choices=(Visit.INPROGRESS, Visit.COMPLETED), required=False)
+    client_code = serializers.RegexField(r'^\d{6}$', required=False,
+                                         error_messages={'invalid': 'کد تأیید شش رقمی است.'})
 
 
 class PromoterVisitStatusChangeAPIView(generics.GenericAPIView):
@@ -1026,7 +1052,7 @@ class PromoterVisitStatusChangeAPIView(generics.GenericAPIView):
     def put(self, request, id):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        if set(serializer.validated_data) != {'status'}:
+        if 'status' not in serializer.validated_data or set(serializer.validated_data) - {'status', 'client_code'}:
             raise DRFValidationError({'status': 'فقط وضعیت مأموریت قابل تغییر است.'})
         visit = assigned_field_visit(request, id)
         new_status = serializer.validated_data['status']
@@ -1042,11 +1068,29 @@ class PromoterVisitStatusChangeAPIView(generics.GenericAPIView):
                 gaps = completion_gaps(visit)
                 if any(gaps.values()):
                     return Response({'requirements': gaps}, status=400)
+                if visit.type.requires_client_code:
+                    from visit.field_ops import CodeRejected, check_completion_code
+                    try:
+                        check_completion_code(visit, serializer.validated_data.get('client_code') or '')
+                    except CodeRejected as error:
+                        # Returning (not raising) commits the failure counter.
+                        return Response({'client_code': [str(error)]}, status=400)
             visit.status = new_status
-            visit.save(update_fields=['status', 'datetime_last_change'])
+            fields = ['status', 'datetime_last_change']
+            if new_status == Visit.INPROGRESS and visit.start_datetime is None:
+                visit.start_datetime = timezone.now()  # first start of the field work
+                fields.append('start_datetime')
+            visit.save(update_fields=fields)
+            if new_status == Visit.INPROGRESS:
+                from visit.field_ops import record_acceptance
+                record_acceptance(visit, request.user)  # starting the work accepts the assignment
             if new_status == Visit.COMPLETED:
+                from notification.in_app import notify_visit_completed
                 from visit.report_snapshot import capture_report_snapshot
-                capture_report_snapshot(visit, request.user)
+                # A corrected re-completion keeps earlier versions and publishes the next one.
+                snapshot = capture_report_snapshot(visit, request.user, new_version=True)
+                actor_id = request.user.id
+                transaction.on_commit(lambda: notify_visit_completed(visit, snapshot.version, actor_id))
             if visit.building_id:
                 building = visit.building
                 building.is_visiting = Visit.objects.filter(
@@ -1095,11 +1139,16 @@ class PromoterVisitStatusChangeAPIView(generics.GenericAPIView):
 
 class QuestionListForVisitsSerializer(serializers.Serializer):
     question = QuestionSerializer()
-    submitted_answer = AnswerSerializer()
+    submitted_answer = FieldAnswerSerializer()
 
 
-def assigned_field_visit(request, visit_id, editable=False, view=None, allow_supervised=False):
-    """Resolve a field visit without exposing another project's or worker's record."""
+def assigned_field_visit(request, visit_id, editable=False, view=None, allow_supervised=False,
+                         allow_project_read=False):
+    """Resolve a field visit without exposing another project's or worker's record.
+
+    allow_project_read lets project-wide roles read (never edit) any visit of the project, so
+    reviewers can open a report they did not perform.
+    """
     try:
         project_id = int(request.query_params.get('p'))
         visit_id = int(visit_id)
@@ -1121,7 +1170,9 @@ def assigned_field_visit(request, visit_id, editable=False, view=None, allow_sup
                       supervisor=request.user, promoter_id=visit.promoter_id,
                       project_id=project_id, is_active=True,
                   ).exists())
-    if not assigned and not supervised:
+    project_reader = (allow_project_read and not editable and view is not None
+                      and authorized_role_views(request, view).filter(role__asset_scope='project').exists())
+    if not assigned and not supervised and not project_reader:
         raise DRFNotFound()
     if editable:
         field_open = assigned and visit.status in [Visit.NOTVISITED, Visit.INPROGRESS, Visit.RETRY, Visit.SUSPEND]
@@ -1366,7 +1417,7 @@ class PromoterAnswersQuestionsView(generics.GenericAPIView):
             answer.save()
             if 'multichoice' in data:
                 answer.multichoice.set(data['multichoice'])
-        return Response(AnswerSerializer(answer).data)
+        return Response(FieldAnswerSerializer(answer).data)
 
 
 class PromoterVisistsHistory(BaseLimiter, generics.ListAPIView, BaseView):
@@ -1374,7 +1425,10 @@ class PromoterVisistsHistory(BaseLimiter, generics.ListAPIView, BaseView):
 
     def get_queryset(self):
         return self.limit_queryset( self.get_projectified_queryset(
-            Visit.objects.filter(promoter=self.request.user, status__in=['2', '3', '4']).order_by('-datetime_created')))
+            Visit.objects.filter(Q(promoter=self.request.user) | Q(expert=self.request.user),
+                                 status__in=['2', '3', '4', '5'], is_deleted=False,
+                                 building__project_id=self.request.query_params.get('p'),
+                                 ).order_by('-datetime_last_change', '-id')))
 
     permission_classes = [
         DeleteCreateUpdateGetPermission,
@@ -1394,6 +1448,7 @@ class PromoterVisistsHistory(BaseLimiter, generics.ListAPIView, BaseView):
 class PhotoTypeSettingsSerializer(PhotoTypeSerializer):
     progress = serializers.CharField()
     status = serializers.BooleanField()
+    count = serializers.IntegerField(default=0)
 
 
 class QuestionTypeSettingsSerializer(serializers.ModelSerializer):
@@ -1403,6 +1458,10 @@ class QuestionTypeSettingsSerializer(serializers.ModelSerializer):
     
     final_score = serializers.ReadOnlyField()
     final_result = serializers.ReadOnlyField()
+    answered_count = serializers.IntegerField(default=0)
+    question_count = serializers.IntegerField(default=0)
+    required_count = serializers.IntegerField(default=0)
+    missing_required = serializers.IntegerField(default=0)
 
     # question_type = serializers.SerializerMethodField()
 
@@ -1424,6 +1483,10 @@ class FrontVisitPageSettingsSerializer(serializers.Serializer):
     photos = PhotoTypeSettingsSerializer(many=True)
     surveys = SurveySerializer(many=True)
     add_ins = AddInSerializer(many=True)
+    is_assignee = serializers.BooleanField(default=False)
+    editable = serializers.BooleanField(default=False)
+    requirements = serializers.DictField(default=dict)
+    report_version = serializers.IntegerField(allow_null=True, default=None)
 
 
 def calculate_final_score(visit: Visit, question_type: QuestionType) -> int:
@@ -1464,6 +1527,7 @@ class FrontVisitPageSettingsView(generics.GenericAPIView):
             raise DRFNotFound()
         visit = assigned_field_visit(
             request, kwargs.get('visit_id'), view=self, allow_supervised=supervision,
+            allow_project_read=True,
         )
         project_id = visit.type.project_id
         question_types = list(QuestionType.objects.filter(
@@ -1483,6 +1547,13 @@ class FrontVisitPageSettingsView(generics.GenericAPIView):
             )
             question_type.status = bool(questions) and answered == len(questions)
             question_type.progress = f'{(answered / len(questions) * 100):g}%' if questions else '0%'
+            question_type.answered_count = answered
+            question_type.question_count = len(questions)
+            required = [question for question in questions if question_type.is_mandatory or question.is_mandatory]
+            question_type.required_count = len(required)
+            question_type.missing_required = sum(
+                not _has_answer(answers.get(question.pk), question.answer_type.values_list('field', flat=True))
+                for question in required)
             question_type.final_score = calculate_final_score(visit, question_type)
             question_type.final_result = get_result(visit, question_type.final_score)
 
@@ -1497,10 +1568,14 @@ class FrontVisitPageSettingsView(generics.GenericAPIView):
             target = max(photo_type.min or 0, 1)
             photo_type.status = count >= target
             photo_type.progress = f'{(min(count / target, 1) * 100):g}%'
+            photo_type.count = count
             if photo_type.name == 'StoreFront':
                 first = rows.first()
                 start_time = first.datetime_created if first else None
 
+        from visit.field_completion import completion_gaps
+        assigned = request.user.id in (visit.expert_id, visit.promoter_id)
+        open_states = [Visit.NOTVISITED, Visit.INPROGRESS, Visit.RETRY, Visit.SUSPEND]
         result = {
             'visit': visit,
             'questions': question_types,
@@ -1508,6 +1583,10 @@ class FrontVisitPageSettingsView(generics.GenericAPIView):
             'start_time': start_time,
             'add_ins': visit.type.add_ins.all(),
             'surveys': visit.type.surveys.all(),
+            'is_assignee': assigned,
+            'editable': assigned and not supervision and visit.status in open_states,
+            'requirements': completion_gaps(visit, supervision=supervision),
+            'report_version': visit.report_snapshots.order_by('-version').values_list('version', flat=True).first(),
         }
         return Response(FrontVisitPageSettingsSerializer(result).data)
 
@@ -1575,7 +1654,8 @@ class PromoterDeletePhotoView(BaseLimiter, generics.RetrieveDestroyAPIView):
 
     def get_queryset(self):
         access = AssetAccess(self.request, self)
-        rows = Photo.objects.filter(visit__promoter=self.request.user, is_deleted=False,
+        rows = Photo.objects.filter(Q(visit__promoter=self.request.user) | Q(visit__expert=self.request.user),
+                                    is_deleted=False,
                                     type__project_id=access.project_id,
                                     visit__type__project_id=access.project_id,
                                     visit__building__project_id=access.project_id,
@@ -1871,7 +1951,9 @@ class AdminVisitsListView(BaseLimiter, generics.ListAPIView, BaseView):
         if supervisor_id is not None and supervisor_id != '':
             base_query = base_query.filter(
                 promoter__in=Supervisor.objects.filter(supervisor__id=supervisor_id).values_list('promoter', flat=True))
-        return self.limit_queryset(self.get_projectified_queryset(base_query))
+        from visit.priority import annotate_visits
+        # `ordering=-priority_value` lists the most sensitive work first for planning and assignment.
+        return annotate_visits(self.limit_queryset(self.get_projectified_queryset(base_query)))
 
     pagination_class = LimitOffsetPagination
 
@@ -2003,11 +2085,13 @@ class AdminUpdateVisitStatusView(BaseLimiter, generics.UpdateAPIView):
         new_status = serializer.validated_data.get('status')
         if new_status is None:
             raise DRFValidationError({'status': 'وضعیت جدید لازم است.'})
-        if new_status in (Visit.APPROVED, Visit.REJECTED) and serializer.instance.status != Visit.COMPLETED:
+        if new_status not in (Visit.APPROVED, Visit.REJECTED, Visit.RETRY):
+            raise DRFValidationError({'status': 'بررسی فقط می‌تواند تأیید، رد یا بازگشت برای اصلاح باشد.'})
+        if serializer.instance.status != Visit.COMPLETED:
             raise DRFValidationError({'status': 'فقط خدمت پایان‌یافته قابل بررسی نهایی است.'})
-        if new_status == Visit.REJECTED and not str(
+        if new_status in (Visit.REJECTED, Visit.RETRY) and not str(
                 serializer.validated_data.get('rejection_reason') or '').strip():
-            raise DRFValidationError({'rejection_reason': 'دلیل رد لازم است.'})
+            raise DRFValidationError({'rejection_reason': 'دلیل رد یا اصلاح لازم است.'})
         with transaction.atomic():
             if new_status == Visit.APPROVED:
                 self.check_alarms(serializer.instance)
@@ -2015,7 +2099,10 @@ class AdminUpdateVisitStatusView(BaseLimiter, generics.UpdateAPIView):
                     supervision_location_confirm='CONFIRMED', supervision_confirm='CONFIRMED')
                 from visit.report_snapshot import capture_report_snapshot
                 capture_report_snapshot(serializer.instance, self.request.user, source='legacy_approval')
-            serializer.save(checked_by=self.request.user)
+            visit = serializer.save(checked_by=self.request.user)
+            from notification.in_app import notify_visit_reviewed
+            actor_id = self.request.user.id
+            transaction.on_commit(lambda: notify_visit_reviewed(visit, actor_id))
 
 
 class AdminAnswerSerializer(AnswerSerializer):
@@ -2875,7 +2962,7 @@ class TicketUploadAttachmentAPIView(BaseLimiter, generics.GenericAPIView):
 class VisitForActionPlanSerializer(serializers.ModelSerializer):
     class Meta:
         model = Visit
-        fields = '__all__'
+        exclude = ('completion_code', 'completion_code_failures', 'completion_code_locked_until')  # only the client app shows the code
 
 
 class IncomingSingleActionPlanSerializer(serializers.Serializer):
@@ -3110,7 +3197,11 @@ class VisitTypeListCreateView(BaseLimiter, generics.ListCreateAPIView, BaseView)
     project_path = 'project'
 
     def get_queryset(self):
-        return self.limit_queryset(self.get_projectified_queryset(VisitType.objects.filter(is_active=True)))
+        rows = VisitType.objects.all()
+        # The service-type settings page also lists retired types so they can be reactivated.
+        if not (self.request.query_params.get('include_inactive') == '1' and AssetAccess(self.request, self).project_wide):
+            rows = rows.filter(is_active=True)
+        return self.limit_queryset(self.get_projectified_queryset(rows))
 
     def get_serializer_class(self):
         if self.request.method == 'GET':
@@ -3132,16 +3223,37 @@ class VisitTypeListCreateView(BaseLimiter, generics.ListCreateAPIView, BaseView)
     ordering_fields = '__all__'
 
 
+class VisitTypeSettingsSerializer(serializers.ModelSerializer):
+    """Service-type settings an admin may change; project and questionnaire links stay fixed."""
+    class Meta:
+        model = VisitType
+        fields = ('id', 'title', 'verbose_name', 'description', 'default_wage', 'requires_client_code',
+                  'show_wage_in_report', 'is_active')
+        read_only_fields = ('id', 'title')
+
+
 class VisitTypeEditsView(BaseLimiter, generics.RetrieveUpdateDestroyAPIView):
 
     def get_queryset(self):
-        return self.limit_queryset(VisitType.objects.all())
+        # Scoped to the selected project; writes need a project-wide role.
+        try:
+            project_id = int(self.request.query_params.get('p'))
+        except (TypeError, ValueError):
+            return VisitType.objects.none()
+        if self.request.method != 'GET' and not AssetAccess(self.request, self).project_wide:
+            return VisitType.objects.none()
+        return self.limit_queryset(VisitType.objects.filter(project_id=project_id))
 
     def get_serializer_class(self):
         if self.request.method == 'GET':
             return VisitTypeNestedSerializer
         else:
-            return VisitTypeOnlySerializer
+            return VisitTypeSettingsSerializer
+
+    def perform_destroy(self, instance):
+        # Visits cascade from their type, so a type is only ever deactivated.
+        instance.is_active = False
+        instance.save(update_fields=['is_active'])
 
     lookup_field = 'id'
     permission_classes = [

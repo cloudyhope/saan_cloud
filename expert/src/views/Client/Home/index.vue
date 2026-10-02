@@ -42,7 +42,7 @@
 
       <section class="dashboard-section" aria-labelledby="recent-heading">
         <div class="section-title-row"><div><span class="section-eyebrow">پیگیری آسان</span><h2 id="recent-heading">آخرین فعالیت‌ها</h2></div><router-link :to="{ name: 'clientVisits' }" class="section-link">همه سوابق <v-icon size="18">mdi-chevron-left</v-icon></router-link></div>
-        <div v-if="!dashboard.recent_visits.length" class="dashboard-empty"><v-icon color="#7890a0" size="27">mdi-text-box-check-outline</v-icon><p>هنوز درخواستی ثبت نشده است. از یک ساختمان شروع کنید.</p></div>
+        <EmptyState v-if="!dashboard.recent_visits.length" kind="visits" size="sm" title="هنوز درخواستی ثبت نشده" description="از یک ساختمان شروع کنید." />
         <router-link v-for="visit in dashboard.recent_visits" :key="visit.id" :to="{ name: 'clientVisitDetail', params: { id: visit.id } }" class="recent-card"><span class="recent-icon"><v-icon size="20">mdi-file-document-outline</v-icon></span><span class="recent-copy"><strong>{{ visit.type_name || 'درخواست خدمت' }}</strong><small>{{ visit.building_name || 'ساختمان' }} · {{ date(visit.datetime_created) }}</small></span><span class="recent-status" :class="statusClass(visit)">{{ statusLabel(visit) }}</span></router-link>
       </section>
 
@@ -52,7 +52,9 @@
         <v-text-field ref="searchField" v-model="search" label="جستجوی نام، کد یا آدرس ساختمان" prepend-inner-icon="mdi-magnify" outlined dense clearable hide-details class="field-search dashboard-search" />
         <v-alert v-if="buildingsError" type="error" outlined role="alert">{{ buildingsError }} <v-btn text color="error" @click="loadBuildings(true)">تلاش دوباره</v-btn></v-alert>
         <v-skeleton-loader v-if="buildingsLoading && !visibleBuildings.length" type="list-item-three-line, list-item-three-line" />
-        <div v-else-if="!visibleBuildings.length && !buildingsError" class="dashboard-empty"><v-icon color="#7890a0" size="30">mdi-office-building-outline</v-icon><p>{{ search ? 'ساختمانی با این عبارت پیدا نشد.' : 'هنوز ساختمانی به حساب شما متصل نشده است.' }}</p></div>
+        <EmptyState v-else-if="!visibleBuildings.length && !buildingsError" kind="building" size="sm"
+                   :title="search ? 'ساختمانی پیدا نشد' : 'ساختمانی متصل نیست'"
+                   :description="search ? 'ساختمانی با این عبارت پیدا نشد.' : 'هنوز ساختمانی به حساب شما متصل نشده است.'" />
         <div class="building-grid"><router-link v-for="building in visibleBuildings" :key="building.id" :to="{ name: 'buildingDetail', params: { id: building.id } }" class="dashboard-building-card"><div class="building-card-top"><span class="building-symbol"><v-icon color="#19537b" size="23">mdi-office-building-outline</v-icon></span><span class="building-id">{{ building.code || 'کد ' + building.id }}</span></div><strong>{{ building.verbose_name || building.name || 'ساختمان' }}</strong><span class="building-address"><v-icon size="15">mdi-map-marker-outline</v-icon>{{ building.address || 'آدرس ثبت نشده' }}</span><div class="building-card-footer"><span><v-icon size="17">mdi-elevator</v-icon>{{ number(building.elevator_count != null ? building.elevator_count : (building.elevators || []).length) }} آسانسور</span><span class="building-open">مشاهده <v-icon size="18">mdi-arrow-left</v-icon></span></div></router-link></div>
         <button v-if="!showAll && dashboard.counts.buildings > dashboard.buildings.length" class="show-more-buildings" type="button" @click="showAllBuildings">نمایش همه ساختمان‌ها <v-icon size="19">mdi-chevron-down</v-icon></button>
         <button v-if="showAll && hasMore" class="show-more-buildings" type="button" :disabled="buildingsLoading" @click="loadBuildings(false)">{{ buildingsLoading ? 'در حال دریافت...' : 'ساختمان‌های بیشتر' }} <v-icon size="19">mdi-chevron-down</v-icon></button>
@@ -64,7 +66,9 @@
 <script>
 import { pageRows, errorMessage } from '@/utils/clientRequests';
 
+import EmptyState from '@/components/EmptyState/index.vue';
 export default {
+  components: { EmptyState },
   name: 'ClientDashboard',
   data: () => ({ dashboard: null, dashboardLoading: false, dashboardProject: null, dashboardSequence: 0, dashboardError: '', buildings: [], buildingsLoading: false, buildingsError: '', search: '', showAll: false, offset: 0, hasMore: false, sequence: 0, timer: null, online: true }),
   computed: {
@@ -95,7 +99,7 @@ export default {
   methods: {
     number(value) { return Number(value || 0).toLocaleString('fa-IR'); },
     date(value) { if (!value) return 'نامشخص'; const parsed = new Date(value); return Number.isNaN(parsed.getTime()) ? 'نامشخص' : parsed.toLocaleDateString('fa-IR', { year: 'numeric', month: 'long', day: 'numeric' }); },
-    statusLabel(visit) { return visit.is_pending_request ? 'در انتظار بررسی' : ({ '0': 'در انتظار مراجعه', '1': 'در حال انجام', '2': 'انجام شده', '3': 'تأیید شده', '4': 'رد شده', '5': 'مراجعه مجدد', '6': 'متوقف شده' }[visit.status] || 'در حال پیگیری'); },
+    statusLabel(visit) { return visit.is_pending_request ? 'در انتظار بررسی' : ({ '0': 'در انتظار مراجعه', '1': 'در حال انجام', '2': 'انجام شده', '3': 'تأیید شده', '4': 'رد شده', '5': 'در حال اصلاح گزارش', '6': 'متوقف شده' }[visit.status] || 'در حال پیگیری'); },
     statusClass(visit) { return visit.is_pending_request ? 'status-pending' : ({ '2': 'status-done', '3': 'status-done', '4': 'status-error', '6': 'status-error' }[visit.status] || 'status-active'); },
     onOnline() { this.online = true; this.loadDashboard(); },
     onOffline() { this.online = false; },

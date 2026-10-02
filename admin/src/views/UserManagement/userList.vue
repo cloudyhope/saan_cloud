@@ -129,32 +129,7 @@
               </td>
               <td>{{ item.user.email }}</td>
               <td class="actions-cell">
-                <div class="action-buttons">
-                  <button
-                    type="button"
-                    class="icon-action"
-                    @click="editUser(item)"
-                    aria-label="ویرایش"
-                  >
-                    <ActionIcon name="edit" />
-                  </button>
-                  <button
-                    type="button"
-                    class="icon-action"
-                    @click="openSetPasswordModal(item)"
-                    aria-label="تغییر رمز عبور"
-                  >
-                    <ActionIcon name="lock" />
-                  </button>
-                  <button
-                    type="button"
-                    class="icon-action"
-                    @click="deleteUserModal(item)"
-                    aria-label="حذف دسترسی"
-                  >
-                    <ActionIcon name="delete" />
-                  </button>
-                </div>
+                <RowActions :items="[{ label: 'ویرایش', icon: 'edit', action: () => editUser(item) }, { label: 'تغییر رمز عبور', icon: 'lock', action: () => openSetPasswordModal(item) }, { label: 'حذف دسترسی', icon: 'delete', action: () => deleteUserModal(item), danger: true }]" />
               </td>
             </tr>
           </template>
@@ -202,8 +177,9 @@ import FilterPanel from '../../components/FilterPanel/index.vue';
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from '@/components/ListPagination/index.vue';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-  components: {
+  components: { RowActions,
     FilterPanel,
     Tableview,
     Pagination,

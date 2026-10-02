@@ -74,12 +74,8 @@
 							<td>{{ item.supervisor.first_name }} {{ item.supervisor.last_name }}</td>
 							<td class="persian-number">{{ item.supervisor.username }}</td>
 							<td>
-								<img
-									@click="deleteItemFunc(item)"
-									class="delete-icon"
-									src="@/assets/images/iconPack/red-trash.svg"
-								/>
-							</td>
+                <RowActions :items="[{ label: 'حذف', icon: 'delete', action: () => deleteItemFunc(item), danger: true }]" />
+              </td>
 						</tr>
 					</template>
 				</Tableview>
@@ -135,8 +131,9 @@
 import Tableview from '../../components/Tableview/index.vue';
 import Pagination from 'vue-pagination-2';
 
+import RowActions from '@/components/RowActions/index.vue';
 export default {
-	components: {
+	components: { RowActions,
 		Tableview,
 		Pagination,
 	},
