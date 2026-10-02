@@ -1,0 +1,54 @@
+name: saan-local
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.local
+    working_dir: /usr/src/app
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["python manage.py migrate && python manage.py runserver 0.0.0.0:8000"]
+    environment:
+      Environment: LOCAL
+      SERVICE_NAME: core_service
+      DJANGO_SETTINGS_MODULE: core.local_settings
+      STORAGE_ADDRESS: localhost
+      STORAGE_PORT: "9000"
+      STORAGE_BUCKET: saan-local
+      STORAGE_PUBLIC_ADDRESS: http://localhost:18130
+    ports:
+      - "127.0.0.1:18110:8000"
+    volumes:
+      - ./backend:/usr/src/app
+      - ./backend/data/db.sqlite3:/usr/src/app/db.sqlite3
+
+  admin:
+    image: node:14-bullseye
+    working_dir: /app
+    command: sh -c "npm ci --legacy-peer-deps --no-audit --no-fund && npm run serve -- --host 0.0.0.0 --port 8080"
+    environment:
+      VUE_APP_SAAN_APP_PATH: http://localhost:18110
+      VUE_APP_CAR_PIECE_PATH: http://localhost:18110
+      SAAN_WATCH_POLL: "true"
+    ports:
+      - "127.0.0.1:18120:8080"
+    volumes:
+      - ./admin:/app
+      - saan_admin_modules:/app/node_modules
+
+  expert:
+    image: node:16-bullseye
+    working_dir: /app
+    command: sh -c "npm ci --legacy-peer-deps --no-audit --no-fund && npm run serve -- --host 0.0.0.0 --port 8080"
+    environment:
+      VUE_APP_SAAN_APP_PATH: http://localhost:18110
+      SAAN_WATCH_POLL: "true"
+    ports:
+      - "127.0.0.1:18122:8080"
+    volumes:
+      - ./expert:/app
+      - saan_expert_modules:/app/node_modules
+
+volumes:
+  saan_admin_modules:
+  saan_expert_modules:

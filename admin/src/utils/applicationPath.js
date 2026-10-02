@@ -1,0 +1,127 @@
+const logo = require('@/assets/images/logo.svg');
+const loginImage = require('@/assets/images/login-img.webp');
+const notFoundImage = require('@/assets/images/Dashboard/notFound.svg');
+
+const bundledImages = {
+	'logo.svg': logo,
+	'login-img.webp': loginImage,
+	'Dashboard/notFound.svg': notFoundImage,
+};
+
+const PATH = {
+	GET_IMAGE_PATH: (path) => bundledImages[path] || '',
+	SERVICE_NAME: {
+		AUTH: '/core',
+		EMPTY:''
+	},
+	RELATIVE_PATH: {
+		GET: {
+			GET_VISIT_LIST:'/api/admin/visit_list/',
+			GET_VISIT_ANSWER_LIST:'/api/admin/answer_list/',
+			GET_CENSUS:'/api/census/list/',
+			GET_PHOTO_LIST:'/api/admin/photo_list',
+			GET_CITY_LIST:'/api/active_city/list/',
+			GET_PROMOTER_LIST:'/api/admin/promoter_list/',
+			GET_OUTLET_LIST: '/api/admin/outlet_list/',
+			CENCUS_FILTER_VALUE:'/api/admin/census/filter_values/',
+			VISIT_PAGE_SETTING:'/api/promoter/visit_page_settings/',
+			GET_PROVINCE_LIST:'/api/province/list/',
+			REPORT_CAT_LIST:'/api/conf/report_cat_list/',
+			REJECTED_REPORT:'/api/admin/fo_answers_list/',
+			WARNING_API:'/api/admin/alarm_list/',
+			ALARM_LIST:'/api/admin/alarm_edit/',
+			AUTH_ROLE:'/api/auth/me/',
+			SURVEY_PAGE_SETTING:'/api/promoter/survey_page_settings/',
+			PROJECT_LISTS:'/api/admin/project_list/',
+			MENU_LIST:'/api/admin/menu/list/',
+			MENU_EDIT:'/api/admin/menu/edits',
+			ACTIVE_PROJECT:'/core/api/active_project/retrieve/',
+			OUTLET_CAT:'/api/admin/outlet_cat_list/',
+			ACTION_PLAN_LISTS:'/api/admin/action_plan/list/',
+			VISIT_TYPE:'/api/admin/visit_type/list_create/',
+			GET_SURVEY_QUESTION:'/api/promoter/survey_question/list/',
+			GET_VISIT_QUESTIONS:'/api/promoter/questions/list/visit/',
+			GET_USER_LIST:'/api/auth/v1/user/inquiry/',
+			ROLE_ASSIGNMENT:'/api/admin/role_assignment/list/',
+			PERSONAL_INFO_VALIDATE:'/api/micro/personalinfo/validate/',
+			WALLET_TRANSACTION_TYPES: '/wallet/transaction_type/list_create/',
+			MEDIA_TYPES: '/config/MediaType/List/',
+		},
+			POST: {
+			PHONE_NUMBER_OTP_REQ: '/api/auth/otp/request/',
+			PASSWORD_AUTH: '/v1/username/password/token/',
+			OTP_VERIFY: '/api/auth/otp/verify/',
+			UPLOAD_IMAGE:'/api/promoter/open_visit/upload_image/',
+			UPLOAD_EXCEL_FILE:'/config/parse_excel/',
+			VISIT_ANSWER_EDIT:'/api/admin/visit_answer/create/',
+			USER_EDIT:'/api/auth/v1/user/management/',
+			USER_SET_PASSWORD:'/api/v1/auth/set-password/',
+			POST_USER_LIST:'/api/auth/v1/user/management/',
+			CREATE_OUTLET:'/api/admin/outlet_with_more_info/create/',
+			WARE_TRANSACTION:'/api/warehouse/v1/ware_transaction/ez_create/',
+			WARE_OPENING_STOCK:'/api/warehouse/v1/ware/opening_stock/'
+
+		},
+	
+		MULTI: {
+			ANSWER_EDIT:'/api/admin/answer_edit/',
+			DELETE_IMAGE:'/api/admin/photo_edit/',
+			VISITS_STATUS:'/api/admin/visit_status_change/',
+			INFRACTIONS_ACTIONS:'/api/admin/fo_answers_list/',
+			ADD_COMMENT:'/api/admin/vist/place_comment/',
+			TICKET_LIST:'/api/admin/ticket/list_create/',
+			TICKET_EDIT:'/api/admin/ticket/edits/',
+			TICKET_MESSAGE:'/api/admin/ticket_message/list_create/',
+			TICKET_ATTACHMENT:'/api/admin/ticket_message_attachment/list_create/',
+			DEFINE_ROLES:'/api/auth/roles/list_create/',
+			SURVEY_LISTS:'/api/admin/survey_fill_out/list_create/',
+			SURVEY_EDIT:'/api/admin/survey_fill_out/edits/',
+			SURVEY_NAME:'/api/admin/survey/list_create/',
+			SURVEY_ANSWER_LIST:'/api/admin/survey_answer/list_create/',
+			SURVEY_PHOTO_LIST:'/api/admin/survey_photo/list_create/',
+			SUVEY_CATEGORY_LIST:'/api/admin/survey_report_category/list_create/',
+			SURVEY_EDIT_ANSWER:'/api/admin/survey_answer/edits/',
+			SURVEY_DELETE_IMAGE:'/api/admin/survey_photo/edits/',
+			SURVEY_PHOTO_UPLOAD:'/api/promoter/upload_survey_photo/',
+			VISIT_DETAIL_EDIT:'/api/admin/visit_edit/',
+			CREATE_ACTION_PLAN: '/api/admin/action_plan/create/',
+			EDIT_ACTION_PLAN:'/api/admin/action_plan/edits/',
+			BULK_UPDATE:'/api/admin/action_plan/bulk_update/',
+			UPLOAD_FILE:'/config/files/list_create/',
+			EDIT_UPLOAD_FILE:'/api/config/files/edits/',
+			LIST_CREATE_ROLE:'/api/auth/roles/list_create/',
+			MENU_EDIT_LISTS:'/api/admin/menu/edits/',
+			WAREHOUSE_LIST_CREATE:'/api/warehouse/v1/ware/list_create/',
+			WAREHOUSE_TYPE:'/api/warehouse/v1/ware_type/list_create/',
+			SUPERVISION_VISIT_STATUS:'/api/admin/supervision_visit_status_change/',
+			WAREHOUSE_LIST:'/api/warehouse/v1/aggregated/ware/list_create/',
+			WAREHOUSE_USER_LOCATION_RETRIEVE:'/api/warehouse/v1/aggregated/user_or_location/retrieve/',
+			LOCATION_LIST_CREATE:'/api/warehouse/v1/location/list_create/',
+			UNIT_LIST_CREATE:'/api/warehouse/v1/unit/list_create/',
+			WARE_VISIT_TYPE:'/api/warehouse/v1/ware_visit_type/list_create/',
+			TRANSACTION_LIST_CREATE:'/api/warehouse/v1/transaction/list_create/',
+			TRANSACTION_LINE_LIST_CREATE:'/api/warehouse/v1/transaction_line/list_create/',
+			OUTLET_MORE_INFO:"/api/admin/outlet_with_more_info/edits/",
+			SUPERVISOR_LIST_CREATE:'/api/auth/supervisor/list_create/',
+			SUPERVISOR_EDIT:'/api/auth/supervisor/edits/',
+			WAREHOUSE_EDIT:'/api/warehouse/v1/ware/edits/',
+			VISIT_RATE:'/api/v1/visit_rate/list_create/',
+			FILE_EDIT:'/api/config/files/edits/',
+			VISIT_BUILDING_LIST_CREATE:'/api/visit/BuildingListCreate/',
+			BUILDING_ELEVATOR_LIST_CREATE:'/api/visit/BuildingElevatorListCreate/',
+			USER_CLIENT_LIST_CREATE:'/api/visit/UserClientListCreate/',
+			CLIENT_LIST_CREATE:'/api/visit/ClientListCreate/',
+			ELEVATOR_LIST_CREATE:'/api/visit/ElevatorListCreate/',
+			BANK_CREDIT_CHARGE_PAYABLE: '/bank_credit_charge/payable/edits/',
+			PROVIDER_CREDIT_LIST_CREATE: '/api/v1/provider_credit/list_create/',
+			MEDIA_LIST_CREATE: '/config/Media/List/',
+			MEDIA_CREATE: '/config/Media/Create/',
+			ELEVATOR_EDIT:'/api/visit/ElevatorEdits/'
+		},
+		DELETE: {
+			DELETE_ROLE_ASSIGNMENT: '/api/admin/role_assignment/delete/'
+		}
+	},
+};
+
+module.exports = PATH;

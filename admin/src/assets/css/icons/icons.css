@@ -1,0 +1,62 @@
+@font-face {
+    font-family: "icons";
+    src: url("./icons.eot?c3ebf47a37d1047104eb037f3f726f0f?#iefix") format("embedded-opentype"),
+url("./icons.woff2?c3ebf47a37d1047104eb037f3f726f0f") format("woff2"),
+url("./icons.woff?c3ebf47a37d1047104eb037f3f726f0f") format("woff"),
+url("./icons.ttf?c3ebf47a37d1047104eb037f3f726f0f") format("truetype"),
+url("./icons.svg?c3ebf47a37d1047104eb037f3f726f0f#icons") format("svg");
+}
+
+i[class^="icon-"]:before, i[class*=" icon-"]:before {
+    font-family: icons !important;
+    font-style: normal;
+    font-weight: normal !important;
+    font-variant: normal;
+    text-transform: none;
+    line-height: 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-arrow-active:before {
+    content: "\f101";
+}
+.icon-arrow-inactive:before {
+    content: "\f102";
+}
+.icon-credit-card:before {
+    content: "\f103";
+}
+.icon-dashboard:before {
+    content: "\f104";
+}
+.icon-headphones:before {
+    content: "\f105";
+}
+.icon-humberger-menu:before {
+    content: "\f106";
+}
+.icon-lock:before {
+    content: "\f107";
+}
+.icon-notification:before {
+    content: "\f108";
+}
+.icon-plus-square:before {
+    content: "\f109";
+}
+.icon-plus:before {
+    content: "\f10a";
+}
+.icon-refresh:before {
+    content: "\f10b";
+}
+.icon-shopping-bag:before {
+    content: "\f10c";
+}
+.icon-user-menu:before {
+    content: "\f10d";
+}
+.icon-user:before {
+    content: "\f10e";
+}

@@ -1,0 +1,17 @@
+venv/
+data/
+local_media/
+local_static/
+env
+*/.git/
+*/__pycache__/
+*/migrations/__pycache__/
+.vscode/
+.env
+.env.test
+.env.dev
+.env.prod
+.env
+bkp/
+auth_app/modules/__pycache__/
+

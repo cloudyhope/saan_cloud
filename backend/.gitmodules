@@ -1,0 +1,6 @@
+[submodule "notification"]
+	path = notification
+	url = https://git.cloubit.com/modules/backend/notification.git
+[submodule "main"]
+	path = main
+	url = https://git.cloubit.com/modules/backend/main.git

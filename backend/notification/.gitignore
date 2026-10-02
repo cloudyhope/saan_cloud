@@ -1,0 +1,17 @@
+venv/
+data/
+env
+/__pycache__/
+*/__pycache__/
+migrations/__pycache__/
+.vscode/
+.env
+.env.prod
+.env.test
+.env.dev
+.env.local
+bkp/
+modules/__pycache__/
+postgres_data/
+dev-docker-compose.yml
+

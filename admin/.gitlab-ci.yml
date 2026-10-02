@@ -1,0 +1,83 @@
+stages:
+  - sonarqube-check
+  - build
+  - deploy
+
+sonarqube-check:
+  stage: sonarqube-check
+  allow_failure: true
+  only:
+    - test
+  tags:
+    - local
+  script:
+    - mkdir -p "$CI_PROJECT_DIR/.sonar/cache"
+    - chmod -R 777 "$CI_PROJECT_DIR/.sonar"
+    - echo "Running SonarQube analysis in Docker container..."
+    - |
+      docker run --rm \
+        -v "$CI_PROJECT_DIR:$CI_PROJECT_DIR" \
+        sonarsource/sonar-scanner-cli:latest \
+          sonar-scanner \
+            -Dsonar.projectBaseDir="$CI_PROJECT_DIR" \
+            -Dsonar.projectKey="saanapp_frontend_admin-panel_ead7d834-ad55-4ea6-840d-771e0c55fa05" \
+            -Dsonar.sources="$CI_PROJECT_DIR" \
+            -Dsonar.userHome="$CI_PROJECT_DIR/.sonar" \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.login="$SONAR_TOKEN"
+  after_script:
+    - sudo rm -rf .sonar
+
+build_job_test:
+  stage: build
+  only:
+    - test
+  tags:
+    - frontend
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "$NGINX_DEFAULT_CONF" > default.conf
+    - echo "$NGINX_NGINX_CONF" > nginx.conf
+  script:
+    - docker build -f Dockerfile-test -t $CI_REGISTRY_IMAGE:$TAG_TEST .
+    - docker push $CI_REGISTRY_IMAGE:$TAG_TEST
+  after_script:
+    - docker rmi -f $CI_REGISTRY_IMAGE:$TAG_TEST
+
+build_job_prod:
+  stage: build
+  only:
+    - main
+  tags:
+    - frontend
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - echo "$NGINX_DEFAULT_CONF" > default.conf
+    - echo "$NGINX_NGINX_CONF" > nginx.conf
+  script:
+    - docker build -t $CI_REGISTRY_IMAGE:$TAG_PROD .
+    - docker push $CI_REGISTRY_IMAGE:$TAG_PROD
+  after_script:
+    - docker rmi -f $CI_REGISTRY_IMAGE:$TAG_PROD
+
+deploy_test:
+  stage: deploy
+  only:
+    - test
+  tags:
+    - deploy
+  script:
+    - chmod 0600 $CI_PROJECT_DIR.tmp/SSH_PRIVATE_KEY
+    - parallel-ssh -i -h $CI_PROJECT_DIR.tmp/SWSERVERS -t 1000 -x "-i $CI_PROJECT_DIR.tmp/SSH_PRIVATE_KEY  -o StrictHostKeyChecking=no" -- "echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin  && docker pull $CI_REGISTRY_IMAGE:$TAG_TEST"
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no $SSH_USER@$SERVER_SW01 "echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin  && docker service update --image $CI_REGISTRY_IMAGE:$TAG_TEST --force $TEST_SERVICE_NAME && docker logout $CI_REGISTRY"
+
+deploy_prod:
+  stage: deploy
+  only:
+    - main
+  tags:
+    - deploy
+  script:
+    - chmod 0600 $CI_PROJECT_DIR.tmp/SSH_PRIVATE_KEY
+    - parallel-ssh -i -h $CI_PROJECT_DIR.tmp/SWSERVERS -t 1000 -x "-i $CI_PROJECT_DIR.tmp/SSH_PRIVATE_KEY  -o StrictHostKeyChecking=no" -- "echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin  && docker pull $CI_REGISTRY_IMAGE:$TAG_PROD"
+    - ssh -i $SSH_PRIVATE_KEY -o StrictHostKeyChecking=no $SSH_USER@$SERVER_SW01 "echo $CI_REGISTRY_PASSWORD | docker login -u $CI_REGISTRY_USER $CI_REGISTRY --password-stdin  && docker service update --image $CI_REGISTRY_IMAGE:$TAG_PROD --force $SERVICE_NAME && docker logout $CI_REGISTRY"

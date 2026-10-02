@@ -1,0 +1,45 @@
+stages:
+  - verify
+
+.verify_rules:
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH == "test"'
+    - if: '$CI_COMMIT_BRANCH == "main"'
+
+backend_verify:
+  stage: verify
+  image: python:3.10-slim
+  extends: .verify_rules
+  variables:
+    DJANGO_SETTINGS_MODULE: core.local_settings
+    Environment: LOCAL
+    PIP_DISABLE_PIP_VERSION_CHECK: '1'
+  before_script:
+    - apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev python3-dev && rm -rf /var/lib/apt/lists/*
+    - cd backend
+    - pip install --no-cache-dir -r requirements.txt
+  script:
+    - python manage.py check
+    - python manage.py makemigrations --check --dry-run
+    - python manage.py test --noinput --verbosity 1
+
+admin_build:
+  stage: verify
+  image: node:14-bullseye
+  extends: .verify_rules
+  before_script:
+    - cd admin
+    - npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
+  script:
+    - npm run build-test
+
+expert_build:
+  stage: verify
+  image: node:16-bullseye
+  extends: .verify_rules
+  before_script:
+    - cd expert
+    - npm install --legacy-peer-deps --package-lock=false --no-audit --no-fund
+  script:
+    - npm run build-production

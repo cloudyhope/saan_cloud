@@ -1,0 +1,30 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+
+(async () => {
+  const source = fs.readFileSync(path.join(__dirname, '../src/utils/detailValues.js'), 'utf8');
+  const { displayValue, answerValue, answerDraft, answerPayload } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+  let checks = 0;
+  const equal = (actual, expected) => { assert.deepStrictEqual(actual, expected); checks++; };
+  equal(displayValue(false), 'خیر');
+  equal(displayValue(0), '0');
+  equal(displayValue(null), 'ثبت نشده');
+  equal(answerValue({ bool: false }, 'YesNo'), 'خیر');
+  equal(answerValue({ number: 0 }, 'Number'), '0');
+  equal(answerValue({ radio: null }, 'RadioChoice'), 'پاسخ ثبت نشده');
+  equal(answerValue({ dropdown: { id: 4, answer: 'ماه آینده' } }, 'DropDownList'), 'ماه آینده');
+  equal(answerValue({ score: 4 }, 'Score'), '4 از ۵');
+  equal(answerValue({ description: 'خط اول\nخط دوم' }, 'Description'), 'خط اول\nخط دوم');
+  equal(answerValue({ multichoice: [1, 2], question: { answer_choices: [{ id: 1, answer: 'الف' }, { id: 2, answer: 'ب' }] } }, 'Multichoice'), 'الف، ب');
+  equal(answerValue({ multichoice: [{ id: 1, answer: 'الف' }] }, 'Multichoice'), 'الف');
+  equal(answerValue({ multichoice: [] }, 'Multichoice'), 'پاسخ ثبت نشده');
+  const draft = answerDraft({ bool: false, number: 0, radio: { id: 2 }, dropdown: { id: 4 }, multichoice: [{ id: 1 }, 3] });
+  equal(draft.multichoice, [1, 3]);
+  equal(draft.radio, 2);
+  equal(draft.bool, false);
+  equal(draft.number, 0);
+  equal(answerPayload(draft, { id: 8, answer_type: [{ name: 'YesNo' }, { name: 'Number' }, { name: 'Multichoice' }] }, '9', false), { bool: false, number: 0, multichoice: [1, 3], question: 8, visit: 9 });
+  equal(answerPayload({ number: '', text: 'نمونه' }, { id: 8, answer_type: [{ name: 'Number' }, { name: 'Input' }] }, '9', true), { number: null, text: 'نمونه', survey_question: 8, survey_fill_out: 9 });
+  console.log(`${checks} detail value/payload checks passed.`);
+})().catch(error => { console.error(error); process.exit(1); });
