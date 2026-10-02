@@ -1,14 +1,11 @@
 #!/bin/sh
+set -e
 
-# Apply database migrations
+# Apply database migrations (idempotent), then replace the shell with the server so signals reach it.
 echo "Apply database migrations"
-python manage.py migrate
+python manage.py migrate --noinput
 
-# Running tests
-# echo "Running Tests"
-# python manage.py test
-
-# Start server
 echo "Starting server"
-# python manage.py runserver 0.0.0.0:8000
-gunicorn --bind 0.0.0.0:8000 core.wsgi:application -w 6
+exec gunicorn --bind 0.0.0.0:8000 core.wsgi:application \
+    -w "${GUNICORN_WORKERS:-3}" --timeout "${GUNICORN_TIMEOUT:-60}" \
+    --access-logfile - --error-logfile -

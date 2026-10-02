@@ -8,7 +8,7 @@ from django.http import FileResponse, Http404
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 
-from core.storage import ArvanStorage
+from core.storage import ArvanStorage, uses_local_media
 
 
 MEDIA_SALT = 'saan-upload-read-v1'
@@ -17,7 +17,9 @@ MEDIA_TTL_SECONDS = 300
 
 def _local_key(link):
     parsed = urlparse(link or '')
-    if parsed.scheme != 'http' or parsed.hostname not in ('localhost', '127.0.0.1') or parsed.netloc.split(':')[-1] != '18110':
+    base = urlparse(settings.MEDIA_PUBLIC_BASE_URL)
+    # Only links this server issued (same scheme and host as MEDIA_PUBLIC_BASE_URL) count as local files.
+    if (parsed.scheme, parsed.netloc) != (base.scheme, base.netloc):
         return None
     prefix = settings.MEDIA_URL.rstrip('/') + '/'
     if not parsed.path.startswith(prefix) or parsed.query or parsed.fragment:
@@ -32,7 +34,7 @@ def _local_key(link):
 def media_read_url(link, request=None, storage='general'):
     if not link:
         return None
-    if settings.SETTINGS_MODULE == 'core.local_settings':
+    if uses_local_media():
         key = _local_key(link)
         if key is None:
             return None
@@ -44,7 +46,7 @@ def media_read_url(link, request=None, storage='general'):
 
 @require_GET
 def local_uploaded_media_read(request, token):
-    if settings.SETTINGS_MODULE != 'core.local_settings':
+    if not uses_local_media():
         raise Http404
     try:
         key = signing.loads(token, salt=MEDIA_SALT, max_age=MEDIA_TTL_SECONDS)

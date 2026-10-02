@@ -1,0 +1,113 @@
+# Saan App production stack for the shared Cloubit VPS (see docs/DEPLOYMENT.md).
+#
+# Rules of this server's architecture, all kept here:
+#   - `name:` is unique, so networks, volumes and containers never collide with other projects.
+#   - No `ports:` on the host; only the shared Caddy proxy is public.
+#   - Only the three public services join the external `web` network, each with a unique alias.
+#   - Every service restarts with the server and has a memory cap so a neighbour cannot be starved.
+#
+#   docker compose --env-file .env -f infra/docker-compose.prod.yml up -d --build
+
+name: saanapp
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME}
+      POSTGRES_USER: ${DATABASE_USERNAME}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=60"]
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME} -d ${DATABASE_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    mem_limit: 512m
+    logging: *logging
+    # no ports: reachable only inside this project's private network
+
+  api:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ../.env
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - media-data:/home/media
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/', timeout=5)"]
+      interval: 15s
+      timeout: 8s
+      retries: 20
+      start_period: 60s
+    mem_limit: 768m
+    logging: *logging
+    networks:
+      default: {}
+      web:
+        aliases:
+          - saanapp-api
+
+  panel:
+    build:
+      context: ../admin
+      dockerfile: Dockerfile
+      args:
+        VUE_APP_SAAN_APP_PATH: ${VUE_APP_SAAN_APP_PATH}
+        VUE_APP_CAR_PIECE_PATH: ${VUE_APP_SAAN_APP_PATH}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 128m
+    logging: *logging
+    networks:
+      default: {}
+      web:
+        aliases:
+          - saanapp-panel
+
+  web:
+    build:
+      context: ../expert
+      dockerfile: Dockerfile
+      args:
+        VUE_APP_SAAN_APP_PATH: ${VUE_APP_SAAN_APP_PATH}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    mem_limit: 128m
+    logging: *logging
+    networks:
+      default: {}
+      web:
+        aliases:
+          - saanapp-web
+
+networks:
+  default: {}
+  web:
+    external: true # the server's shared network, created once
+
+volumes:
+  db-data:
+  media-data:

@@ -11,9 +11,14 @@ from django.core.files.storage import default_storage
 logging.basicConfig(level=logging.INFO)
 
 
+def uses_local_media():
+    """Files live on a local volume: the local dev settings or LOCAL_MEDIA_STORAGE=true in production."""
+    return settings.SETTINGS_MODULE == 'core.local_settings' or getattr(settings, 'LOCAL_MEDIA_STORAGE', False)
+
+
 class ArvanStorage:
     def __init__(self, storage='general'):
-        self.local = settings.SETTINGS_MODULE == 'core.local_settings'
+        self.local = uses_local_media()
         if self.local:
             return
 
@@ -50,7 +55,7 @@ class ArvanStorage:
     def put_file(self, file):
         if self.local:
             name = default_storage.save('uploads/' + str(uuid.uuid4()) + '-' + os.path.basename(file.name), file)
-            return 'http://localhost:18110' + default_storage.url(name)
+            return settings.MEDIA_PUBLIC_BASE_URL + default_storage.url(name)
         try:
             # if not settings.production:
             # self.endpoint_address = self.endpoint_address[:self.endpoint_address.rfind(

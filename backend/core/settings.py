@@ -57,23 +57,24 @@ if not SECRET_KEY:
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = not production and os.environ.get('DJANGO_DEBUG', 'true').lower() in ('1', 'true', 'yes')
 
-_default_hosts = ('api.saanapp.ir,tapi.saanapp.ir,t.saanapp.ir,app.saanapp.ir,'
+_default_hosts = ('webapi.saanapp.ir,api.saanapp.ir,tapi.saanapp.ir,t.saanapp.ir,app.saanapp.ir,'
                   'admin.saanapp.ir,localhost,127.0.0.1') if production else 'localhost,127.0.0.1,testserver,api'
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get('DJANGO_ALLOWED_HOSTS', _default_hosts).split(',') if host.strip()]
 
-CSRF_TRUSTED_ORIGINS = ['https://*.saanapp.ir'] if production else ['http://localhost:18120', 'http://localhost:18122']
+CSRF_TRUSTED_ORIGINS = ([item.strip() for item in os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', 'https://*.saanapp.ir').split(',')
+                          if item.strip()] if production else ['http://localhost:18120', 'http://localhost:18122'])
 SESSION_COOKIE_SECURE = production
 CSRF_COOKIE_SECURE = production
+if production:
+    # TLS ends at the reverse proxy; trust its forwarded scheme so absolute URLs and secure cookies are right.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 if production:
-    CORS_ALLOWED_ORIGINS = [
-    "https://app.saanapp.ir",
-    "https://admin.saanapp.ir",
-    "https://saanapp.ir",
-    "https://tapp.saanapp.ir",
-    "https://tadmin.saanapp.ir",
-    "https://t.saanapp.ir",
-]
+    # The admin panel and the field app are separate origins; override with DJANGO_CORS_ALLOWED_ORIGINS.
+    CORS_ALLOWED_ORIGINS = [item.strip() for item in os.environ.get(
+        'DJANGO_CORS_ALLOWED_ORIGINS',
+        'https://panel.saanapp.ir,https://web.saanapp.ir,https://app.saanapp.ir,https://admin.saanapp.ir,https://saanapp.ir',
+    ).split(',') if item.strip()]
 else:
     CORS_ALLOW_ALL_ORIGINS =True
     
@@ -102,6 +103,7 @@ CORS_ALLOW_HEADERS = [
     "x-csrftoken",
     "x-requested-with",
     'core-client',
+    'saanapp-client',  # sent by the field app
 ]
 
 # Application definition
@@ -241,20 +243,25 @@ else:
     }
 
 
-# if not environment == 'LOCAL' and not environment == 'DEV':
-#     # Min IO
-DEFAULT_FILE_STORAGE = "minio_storage.storage.MinioMediaStorage"
-STATICFILES_STORAGE = "minio_storage.storage.MinioStaticStorage"
-MINIO_STORAGE_ENDPOINT = os.environ.get('STORAGE_ADDRESS', 'storage.carpiece.cp') + ":" + os.environ.get('STORAGE_PORT', '9000')
-MINIO_STORAGE_ACCESS_KEY = os.environ.get('STORAGE_USER', None)
-MINIO_STORAGE_SECRET_KEY = os.environ.get('STORAGE_PASSWORD', None)
-MINIO_STORAGE_USE_HTTPS = False
-# MINIO_STORAGE_MEDIA_BUCKET_NAME = os.environ.get('STORAGE_BUCKET', None)
-MINIO_STORAGE_STATIC_BUCKET_NAME = os.environ.get('STORAGE_BUCKET', None)
-MINIO_STORAGE_AUTO_CREATE_MEDIA_BUCKET = False
-MINIO_STORAGE_AUTO_CREATE_STATIC_BUCKET = False
-MINIO_STORAGE_STATIC_URL = os.environ.get('STORAGE_PUBLIC_ADDRESS', None) + '/' + MINIO_STORAGE_STATIC_BUCKET_NAME
-# MINIO_STORAGE_MEDIA_URL = os.environ.get('STORAGE_PUBLIC_ADDRESS', None) + '/' + MINIO_STORAGE_MEDIA_BUCKET_NAME
+# Uploaded files. LOCAL_MEDIA_STORAGE=true keeps them on a volume (MEDIA_ROOT) and serves them only through
+# short-lived signed URLs (core.media_access); otherwise object storage is used as before.
+LOCAL_MEDIA_STORAGE = os.environ.get('LOCAL_MEDIA_STORAGE', 'false').lower() in ('1', 'true', 'yes')
+MEDIA_PUBLIC_BASE_URL = os.environ.get('MEDIA_PUBLIC_BASE_URL', 'http://localhost:18110').rstrip('/')
+if LOCAL_MEDIA_STORAGE:
+    DEFAULT_FILE_STORAGE = "django.core.files.storage.FileSystemStorage"
+    MEDIA_ROOT = os.environ.get('MEDIA_ROOT', '/home/media')
+    MEDIA_URL = '/media/'
+else:
+    DEFAULT_FILE_STORAGE = "minio_storage.storage.MinioMediaStorage"
+    STATICFILES_STORAGE = "minio_storage.storage.MinioStaticStorage"
+    MINIO_STORAGE_ENDPOINT = os.environ.get('STORAGE_ADDRESS', 'storage.carpiece.cp') + ":" + os.environ.get('STORAGE_PORT', '9000')
+    MINIO_STORAGE_ACCESS_KEY = os.environ.get('STORAGE_USER', None)
+    MINIO_STORAGE_SECRET_KEY = os.environ.get('STORAGE_PASSWORD', None)
+    MINIO_STORAGE_USE_HTTPS = False
+    MINIO_STORAGE_STATIC_BUCKET_NAME = os.environ.get('STORAGE_BUCKET', None) or ''
+    MINIO_STORAGE_AUTO_CREATE_MEDIA_BUCKET = False
+    MINIO_STORAGE_AUTO_CREATE_STATIC_BUCKET = False
+    MINIO_STORAGE_STATIC_URL = (os.environ.get('STORAGE_PUBLIC_ADDRESS', None) or '') + '/' + MINIO_STORAGE_STATIC_BUCKET_NAME
 
 
 

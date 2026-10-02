@@ -1,0 +1,23 @@
+# Routing for the shared Caddy proxy: copy to /opt/proxy/sites/saanapp.caddy on the server, then
+#   docker compose -f /opt/proxy/compose.yml exec caddy caddy validate --config /etc/caddy/Caddyfile
+#   docker compose -f /opt/proxy/compose.yml exec caddy caddy reload   --config /etc/caddy/Caddyfile
+# Certificates are issued automatically once DNS points here and ports 80/443 are open.
+
+panel.saanapp.ir {
+	encode zstd gzip
+	reverse_proxy saanapp-panel:80
+}
+
+web.saanapp.ir {
+	encode zstd gzip
+	reverse_proxy saanapp-web:80
+}
+
+webapi.saanapp.ir {
+	encode zstd gzip
+	# Photos are limited to 10 MB by the API; leave headroom for the multipart envelope.
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy saanapp-api:8000
+}

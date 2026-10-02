@@ -1,0 +1,16 @@
+# Never ship local databases, uploads, QA credentials or caches in an image.
+data/
+local_media/
+local_static/
+*.sqlite3
+*.sqlite
+.env
+.env.*
+!.env.example
+**/__pycache__/
+**/*.pyc
+.git
+.gitignore
+.gitlab-ci.yml
+.gitmodules
+Dockerfile.local

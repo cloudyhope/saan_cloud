@@ -1,27 +1,27 @@
 FROM python:3.10-slim
 
-# set work directory
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /usr/src/app
 
-# set environment variables
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
-
-RUN apt update \
-    && apt -y install libpq-dev libpq5 python3-dev musl-dev \
+# Build tools only for the pip step; the runtime image keeps libpq.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gcc libpq-dev python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install --upgrade pip
-COPY ./requirements.txt .
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --use-deprecated=legacy-resolver --no-cache-dir -r requirements.txt
 
-RUN pip config --user set global.index https://artifact.cloubit.com/repository/pypi-repo/simple
-RUN pip config --user set global.index-url https://artifact.cloubit.com/repository/pypi-repo/simple
-RUN pip config --user set global.trusted-host artifact.cloubit.com
-
-RUN pip install -r requirements.txt
-
-# copy project
 COPY . .
 
-RUN chmod +x /usr/src/app/docker-entrypoint.sh
-ENTRYPOINT ["sh","/usr/src/app/docker-entrypoint.sh"]
+# Uploaded files live on a volume mounted at /home/media; the app runs unprivileged.
+RUN useradd --create-home --uid 10001 app \
+    && mkdir -p /home/media /home/static \
+    && chown -R app:app /home/media /home/static /usr/src/app \
+    && chmod +x /usr/src/app/docker-entrypoint.sh
+USER app
+
+EXPOSE 8000
+ENTRYPOINT ["sh", "/usr/src/app/docker-entrypoint.sh"]
